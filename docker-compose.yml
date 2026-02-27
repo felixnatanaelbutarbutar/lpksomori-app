@@ -1,0 +1,73 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lpkmori_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lpkmori
+      POSTGRES_PASSWORD: lpkmori_secret
+      POSTGRES_DB: lpkmori_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U lpkmori -d lpkmori_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lpkmori_net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lpkmori_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: lpkmori
+      DB_PASSWORD: lpkmori_secret
+      DB_NAME: lpkmori_db
+      JWT_SECRET: ${JWT_SECRET:-super_secret_jwt_key_change_in_production}
+      PORT: 8080
+      UPLOAD_DIR: /app/uploads
+      GIN_MODE: ${GIN_MODE:-release}
+    ports:
+      - "8080:8080"
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - lpkmori_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: lpkmori_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
+    ports:
+      - "3000:3000"
+    networks:
+      - lpkmori_net
+
+volumes:
+  postgres_data:
+  uploads_data:
+
+
+networks:
+  lpkmori_net:
+    driver: bridge
