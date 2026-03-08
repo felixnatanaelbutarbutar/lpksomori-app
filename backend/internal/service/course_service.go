@@ -9,8 +9,8 @@ import (
 )
 
 type CourseService interface {
-	// ListCourses lists all courses for a given class, preloading the teacher.
-	ListCourses(ctx context.Context, classID int) ([]models.Course, error)
+	// ListCourses lists all courses for a given class or teacher, preloading the teacher.
+	ListCourses(ctx context.Context, classID, teacherID int) ([]models.Course, error)
 	// CreateCourse creates a course in a class, auto-setting teacher_id from the caller.
 	CreateCourse(ctx context.Context, classID int, teacherID int, name string) (*models.Course, error)
 	// UpdateCourse lets the owning teacher rename their course.
@@ -27,11 +27,14 @@ func NewCourseService(db *gorm.DB) CourseService {
 	return &courseService{db: db}
 }
 
-func (s *courseService) ListCourses(ctx context.Context, classID int) ([]models.Course, error) {
+func (s *courseService) ListCourses(ctx context.Context, classID, teacherID int) ([]models.Course, error) {
 	var courses []models.Course
 	query := s.db.WithContext(ctx).Preload("Teacher").Order("id ASC")
 	if classID > 0 {
 		query = query.Where("class_id = ?", classID)
+	}
+	if teacherID > 0 {
+		query = query.Where("teacher_id = ?", teacherID)
 	}
 	if err := query.Find(&courses).Error; err != nil {
 		return nil, err

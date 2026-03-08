@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Fragment } from "react";
 import {
     CalendarDays,
     Plus,
@@ -204,7 +204,7 @@ export default function AcademicPage() {
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                             {years.map((y) => (
-                                <>
+                                <Fragment key={y.id}>
                                     <tr
                                         key={y.id}
                                         className={`hover:bg-gray-50/50 transition-colors ${y.is_active ? "bg-[#006D77]/3" : ""}`}
@@ -307,7 +307,7 @@ export default function AcademicPage() {
                                             </td>
                                         </tr>
                                     )}
-                                </>
+                                </Fragment>
                             ))}
                         </tbody>
                     </table>

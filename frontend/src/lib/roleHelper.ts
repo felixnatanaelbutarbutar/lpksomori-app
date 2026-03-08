@@ -12,14 +12,19 @@ export type Role = "admin" | "teacher" | "student";
 
 export type Feature =
     | "dashboard"
+    | "student_dashboard"
+    | "announcements"
     | "users"
     | "academic_years"
     | "classes"
     | "courses"
+    | "teacher_assignments"
+    | "teacher_exams"
     | "exams"
     | "question_bank"
     | "my_courses"
     | "my_results"
+    | "notifications"
     | "reports"
     | "settings";
 
@@ -28,40 +33,55 @@ type PermissionMap = Record<Feature, boolean>;
 const PERMISSIONS: Record<Role, PermissionMap> = {
     admin: {
         dashboard: true,
-        users: true,          // Manage teacher & student accounts
-        academic_years: true, // Create / manage academic years
-        classes: true,        // View & manage all classes
-        courses: true,        // Manage all courses
-        exams: true,          // Create & manage exams / quizzes
-        question_bank: true,  // Full question bank access
-        my_courses: false,    // N/A for admin
-        my_results: false,    // N/A for admin
-        reports: true,        // View all reports & analytics
-        settings: true,       // System settings
+        student_dashboard: false,
+        announcements: true,
+        users: true,
+        academic_years: true,
+        classes: true,
+        courses: true,
+        teacher_assignments: false,
+        teacher_exams: false,
+        exams: true,
+        question_bank: true,
+        my_courses: false,
+        my_results: false,
+        notifications: true,
+        reports: true,
+        settings: true,
     },
     teacher: {
         dashboard: true,
-        users: false,         // Cannot manage accounts
-        academic_years: false, // Read-only via dashboard
-        classes: true,         // View own classes
-        courses: true,         // Manage own courses
-        exams: true,           // Create exams for own courses
-        question_bank: true,   // Create & manage own questions
+        student_dashboard: false,
+        announcements: true,
+        users: false,
+        academic_years: false,
+        classes: true,
+        courses: true,
+        teacher_assignments: true,  // Manage tugas & nilai
+        teacher_exams: true,        // Manage ujian & soal
+        exams: false,
+        question_bank: false,
         my_courses: false,
         my_results: false,
-        reports: true,         // View reports for own classes
+        notifications: true,
+        reports: true,
         settings: false,
     },
     student: {
-        dashboard: true,
+        dashboard: false,
+        student_dashboard: true,   // Student-specific home
+        announcements: true,
         users: false,
         academic_years: false,
         classes: false,
         courses: false,
+        teacher_assignments: false,
+        teacher_exams: false,
         exams: false,
         question_bank: false,
-        my_courses: true,   // View enrolled courses
-        my_results: true,   // View own exam results
+        my_courses: true,
+        my_results: true,
+        notifications: true,
         reports: false,
         settings: false,
     },
@@ -102,6 +122,20 @@ const ALL_NAV_ITEMS: NavItem[] = [
         feature: "dashboard",
     },
     {
+        name: "Dashboard",
+        nameJa: "ダッシュボード",
+        href: "/dashboard/students/dashboard",
+        icon: "LayoutDashboard",
+        feature: "student_dashboard",
+    },
+    {
+        name: "Pengumuman",
+        nameJa: "お知らせ",
+        href: "/dashboard/announcements",
+        icon: "Megaphone",
+        feature: "announcements",
+    },
+    {
         name: "Manajemen Pengguna",
         nameJa: "ユーザー管理",
         href: "/dashboard/users",
@@ -130,6 +164,20 @@ const ALL_NAV_ITEMS: NavItem[] = [
         feature: "courses",
     },
     {
+        name: "Manajemen Tugas",
+        nameJa: "課題管理",
+        href: "/dashboard/teacher/assignments",
+        icon: "ClipboardList",
+        feature: "teacher_assignments",
+    },
+    {
+        name: "Manajemen Ujian",
+        nameJa: "試験管理",
+        href: "/dashboard/teacher/exams",
+        icon: "FileText",
+        feature: "teacher_exams",
+    },
+    {
         name: "Ujian & Kuis",
         nameJa: "試験管理",
         href: "/dashboard/exams",
@@ -156,6 +204,13 @@ const ALL_NAV_ITEMS: NavItem[] = [
         href: "/dashboard/my-results",
         icon: "BarChart2",
         feature: "my_results",
+    },
+    {
+        name: "Notifikasi",
+        nameJa: "通知",
+        href: "/dashboard/notifications",
+        icon: "Bell",
+        feature: "notifications",
     },
     {
         name: "Laporan",
@@ -188,19 +243,19 @@ export const ROLE_META: Record<
     admin: {
         label: "Super Admin",
         labelJa: "管理者",
-        color: "#006D77",
-        bg: "#006D7714",
+        color: "#0D7A6F",
+        bg: "#E5F4F2",
     },
     teacher: {
         label: "Guru",
         labelJa: "先生",
-        color: "#E9A800",
-        bg: "#E9A80014",
+        color: "#B07D3A",
+        bg: "#F5EDD9",
     },
     student: {
         label: "Siswa",
         labelJa: "学生",
-        color: "#7B5EA7",
-        bg: "#7B5EA714",
+        color: "#5C5EA6",
+        bg: "#EEEEF8",
     },
 };

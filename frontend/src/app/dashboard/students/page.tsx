@@ -7,11 +7,11 @@ import {
     Pencil,
     Trash2,
     X,
-    Check,
     Search,
     GraduationCap,
     BookOpen,
     CircleUserRound,
+    Check,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL
@@ -31,17 +31,17 @@ interface User {
 
 type RoleTab = "all" | "teacher" | "student";
 
-const ROLE_LABEL: Record<string, { label: string; color: string; bg: string }> = {
-    admin: { label: "Admin", color: "#006D77", bg: "#006D7715" },
-    teacher: { label: "Guru", color: "#E9A800", bg: "#E9A80015" },
-    student: { label: "Siswa", color: "#7B5EA7", bg: "#7B5EA715" },
+const ROLE_META: Record<string, { label: string; color: string; bg: string }> = {
+    admin: { label: "Admin", color: "var(--role-admin)", bg: "var(--role-admin-bg)" },
+    teacher: { label: "Guru", color: "var(--role-teacher)", bg: "var(--role-teacher-bg)" },
+    student: { label: "Siswa", color: "var(--role-student)", bg: "var(--role-student-bg)" },
 };
 
 function RoleBadge({ role }: { role: string }) {
-    const r = ROLE_LABEL[role] ?? { label: role, color: "#888", bg: "#88881a" };
+    const r = ROLE_META[role] ?? { label: role, color: "var(--text-muted)", bg: "var(--bg-subtle)" };
     return (
         <span
-            className="px-2 py-0.5 rounded-full text-xs font-semibold"
+            className="px-2.5 py-1 rounded-full text-[11px] font-semibold"
             style={{ color: r.color, background: r.bg }}
         >
             {r.label}
@@ -49,25 +49,36 @@ function RoleBadge({ role }: { role: string }) {
     );
 }
 
-function Modal({
-    title,
-    onClose,
-    children,
-}: {
+function Modal({ title, onClose, children }: {
     title: string;
     onClose: () => void;
     children: React.ReactNode;
 }) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                    <h3 className="font-semibold text-[#0D1B2A] text-base">{title}</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fade-in">
+            <div
+                className="w-full max-w-md rounded-2xl overflow-hidden"
+                style={{
+                    background: "var(--bg-surface)",
+                    border: "1px solid var(--border)",
+                    boxShadow: "var(--shadow-lg)",
+                }}
+            >
+                <div
+                    className="flex items-center justify-between px-6 py-4"
+                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                >
+                    <h3 className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
+                        {title}
+                    </h3>
                     <button
                         onClick={onClose}
-                        className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center transition-colors"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                        style={{ color: "var(--text-muted)" }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-subtle)"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                     >
-                        <X size={16} className="text-gray-500" />
+                        <X size={14} />
                     </button>
                 </div>
                 <div className="p-6">{children}</div>
@@ -76,30 +87,40 @@ function Modal({
     );
 }
 
+function FormField({ label, optional, children }: { label: string; optional?: boolean; children: React.ReactNode }) {
+    return (
+        <div>
+            <label className="block text-[11px] font-semibold uppercase tracking-[0.1em] mb-1.5" style={{ color: "var(--text-muted)" }}>
+                {label}
+                {optional && <span className="normal-case text-[10px] font-normal ml-1" style={{ color: "var(--text-muted)" }}>(opsional)</span>}
+            </label>
+            {children}
+        </div>
+    );
+}
+
+const inputClass = "w-full px-3.5 py-2.5 rounded-xl text-sm transition-all";
+const inputStyle = {
+    background: "var(--bg-canvas)",
+    border: "1.5px solid var(--border)",
+    color: "var(--text-primary)",
+};
+
 export default function UsersPage() {
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [tab, setTab] = useState<RoleTab>("all");
     const [search, setSearch] = useState("");
 
-    // Create modal state
     const [showCreate, setShowCreate] = useState(false);
     const [createRole, setCreateRole] = useState<"teacher" | "student">("teacher");
-    const [form, setForm] = useState({
-        email: "",
-        password: "",
-        name: "",
-        nis: "",
-        active: true,
-    });
+    const [form, setForm] = useState({ email: "", password: "", name: "", nis: "", active: true });
     const [formError, setFormError] = useState("");
     const [formLoading, setFormLoading] = useState(false);
 
-    // Edit modal state
     const [editUser, setEditUser] = useState<User | null>(null);
     const [editForm, setEditForm] = useState({ name: "", nis: "", active: true });
 
-    // Delete confirm
     const [deleteId, setDeleteId] = useState<number | null>(null);
 
     const fetchUsers = useCallback(async () => {
@@ -116,9 +137,7 @@ export default function UsersPage() {
         }
     }, [tab]);
 
-    useEffect(() => {
-        fetchUsers();
-    }, [fetchUsers]);
+    useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
     const filteredUsers = users.filter((u) => {
         const q = search.toLowerCase();
@@ -190,65 +209,95 @@ export default function UsersPage() {
         setEditForm({ name: u.name ?? "", nis: u.nis ?? "", active: u.active });
     };
 
-    const tabs: { key: RoleTab; label: string; icon: React.ElementType }[] = [
-        { key: "all", label: "Semua", icon: Users },
-        { key: "teacher", label: "Guru (先生)", icon: BookOpen },
-        { key: "student", label: "Siswa (学生)", icon: GraduationCap },
+    const tabs: { key: RoleTab; label: string; icon: React.ElementType; count: number }[] = [
+        { key: "all", label: "Semua", icon: Users, count: users.length },
+        { key: "teacher", label: "Guru (先生)", icon: BookOpen, count: users.filter(u => u.role === "teacher").length },
+        { key: "student", label: "Siswa (学生)", icon: GraduationCap, count: users.filter(u => u.role === "student").length },
     ];
 
     return (
         <div className="space-y-6 max-w-6xl mx-auto">
-            {/* Header */}
+            {/* ── Header ── */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-serif font-bold text-[#0D1B2A]">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] mb-1" style={{ color: "var(--accent)" }}>
+                        ユーザー管理
+                    </p>
+                    <h1
+                        className="text-2xl font-bold"
+                        style={{ color: "var(--text-primary)", fontFamily: "var(--font-serif)", letterSpacing: "-0.02em" }}
+                    >
                         Manajemen Pengguna
                     </h1>
-                    <p className="text-gray-400 text-sm mt-0.5">
+                    <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
                         Kelola akun Guru dan Siswa di platform
                     </p>
                 </div>
                 <button
                     onClick={() => setShowCreate(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg shadow-[#006D77]/25 transition-all"
-                    style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all shrink-0"
+                    style={{ background: "var(--accent)", boxShadow: "0 4px 12px rgba(13,122,111,0.25)" }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-hover)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent)"; }}
                 >
-                    <Plus size={16} />
+                    <Plus size={15} />
                     Tambah Pengguna
                 </button>
             </div>
 
-            {/* Card */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            {/* ── Table Card ── */}
+            <div
+                className="rounded-2xl overflow-hidden"
+                style={{
+                    background: "var(--bg-surface)",
+                    border: "1px solid var(--border)",
+                    boxShadow: "var(--shadow-sm)",
+                }}
+            >
                 {/* Tabs + Search */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-4 border-b border-gray-50">
-                    <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-                        {tabs.map(({ key, label, icon: Icon }) => (
+                <div
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-4"
+                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                >
+                    <div
+                        className="flex gap-1 p-1 rounded-xl"
+                        style={{ background: "var(--bg-canvas)" }}
+                    >
+                        {tabs.map(({ key, label, icon: Icon, count }) => (
                             <button
                                 key={key}
                                 onClick={() => setTab(key)}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${tab === key
-                                    ? "bg-white text-[#006D77] shadow-sm"
-                                    : "text-gray-500 hover:text-gray-700"
-                                    }`}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                                style={{
+                                    background: tab === key ? "var(--bg-surface)" : "transparent",
+                                    color: tab === key ? "var(--accent)" : "var(--text-secondary)",
+                                    boxShadow: tab === key ? "var(--shadow-sm)" : "none",
+                                }}
                             >
-                                <Icon size={13} />
+                                <Icon size={12} />
                                 {label}
+                                <span
+                                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                    style={{
+                                        background: tab === key ? "var(--accent-soft)" : "var(--bg-subtle)",
+                                        color: tab === key ? "var(--accent)" : "var(--text-muted)",
+                                    }}
+                                >
+                                    {count}
+                                </span>
                             </button>
                         ))}
                     </div>
 
                     <div className="relative">
-                        <Search
-                            size={14}
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300"
-                        />
+                        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
                         <input
                             type="text"
                             placeholder="Cari nama, email, NIS..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="pl-8 pr-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-700 placeholder-gray-300 focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20 w-56 transition-all"
+                            className="pl-8 pr-4 py-2 rounded-xl text-sm w-52 transition-all"
+                            style={{ background: "var(--bg-canvas)", border: "1px solid var(--border)", color: "var(--text-primary)" }}
                         />
                     </div>
                 </div>
@@ -256,89 +305,111 @@ export default function UsersPage() {
                 {/* Table */}
                 <div className="overflow-x-auto">
                     {loading ? (
-                        <div className="flex items-center justify-center py-16 text-gray-400 text-sm gap-2">
-                            <div className="w-4 h-4 border-2 border-[#006D77] border-t-transparent rounded-full animate-spin" />
+                        <div className="flex items-center justify-center py-16 gap-2.5 text-sm" style={{ color: "var(--text-muted)" }}>
+                            <div
+                                className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin"
+                                style={{ borderColor: "var(--accent-border)", borderTopColor: "transparent" }}
+                            />
                             Memuat data...
                         </div>
                     ) : filteredUsers.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 gap-2">
-                            <CircleUserRound size={36} className="text-gray-200" />
-                            <p className="text-gray-400 text-sm">Belum ada pengguna</p>
+                        <div className="flex flex-col items-center justify-center py-16 gap-3">
+                            <CircleUserRound size={32} style={{ color: "var(--text-muted)", opacity: 0.4 }} />
+                            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Belum ada pengguna</p>
                         </div>
                     ) : (
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="border-b border-gray-50">
-                                    {["Pengguna", "Role", "NIS", "Status", "Bergabung", "Aksi"].map(
-                                        (h) => (
-                                            <th
-                                                key={h}
-                                                className="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider"
-                                            >
-                                                {h}
-                                            </th>
-                                        )
-                                    )}
+                                <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                                    {["Pengguna", "Role", "NIS", "Status", "Bergabung", "Aksi"].map((h) => (
+                                        <th
+                                            key={h}
+                                            className="text-left px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.1em]"
+                                            style={{ color: "var(--text-muted)" }}
+                                        >
+                                            {h}
+                                        </th>
+                                    ))}
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-50">
+                            <tbody>
                                 {filteredUsers.map((u) => (
-                                    <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
-                                        <td className="px-5 py-4">
+                                    <tr
+                                        key={u.id}
+                                        className="transition-colors"
+                                        style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-subtle)"; }}
+                                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                                    >
+                                        <td className="px-5 py-3.5">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#006D77] to-[#4ECDC4] flex items-center justify-center text-white font-bold text-xs shrink-0">
+                                                <div
+                                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
+                                                    style={{
+                                                        background: ROLE_META[u.role]?.color ?? "var(--text-muted)",
+                                                    }}
+                                                >
                                                     {(u.name || u.email)[0].toUpperCase()}
                                                 </div>
                                                 <div>
-                                                    <p className="font-semibold text-[#0D1B2A]">
+                                                    <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
                                                         {u.name || "(Nama belum diatur)"}
                                                     </p>
-                                                    <p className="text-gray-400 text-xs">{u.email}</p>
+                                                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                                                        {u.email}
+                                                    </p>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-5 py-4">
+                                        <td className="px-5 py-3.5">
                                             <RoleBadge role={u.role} />
                                         </td>
-                                        <td className="px-5 py-4 text-gray-500 text-xs">
+                                        <td className="px-5 py-3.5 text-xs" style={{ color: "var(--text-secondary)" }}>
                                             {u.nis || "—"}
                                         </td>
-                                        <td className="px-5 py-4">
+                                        <td className="px-5 py-3.5">
                                             <span
-                                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${u.active
-                                                    ? "bg-emerald-50 text-emerald-600"
-                                                    : "bg-gray-100 text-gray-400"
-                                                    }`}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium"
+                                                style={{
+                                                    background: u.active ? "var(--success-bg)" : "var(--bg-subtle)",
+                                                    color: u.active ? "var(--success)" : "var(--text-muted)",
+                                                }}
                                             >
                                                 <span
-                                                    className={`w-1.5 h-1.5 rounded-full ${u.active ? "bg-emerald-500" : "bg-gray-300"
-                                                        }`}
+                                                    className="w-1.5 h-1.5 rounded-full"
+                                                    style={{ background: u.active ? "var(--success)" : "var(--text-muted)" }}
                                                 />
                                                 {u.active ? "Aktif" : "Nonaktif"}
                                             </span>
                                         </td>
-                                        <td className="px-5 py-4 text-gray-400 text-xs">
+                                        <td className="px-5 py-3.5 text-xs" style={{ color: "var(--text-muted)" }}>
                                             {new Date(u.created_at).toLocaleDateString("id-ID", {
                                                 day: "numeric",
                                                 month: "short",
                                                 year: "numeric",
                                             })}
                                         </td>
-                                        <td className="px-5 py-4">
+                                        <td className="px-5 py-3.5">
                                             <div className="flex items-center gap-1">
                                                 <button
                                                     onClick={() => openEdit(u)}
-                                                    className="w-7 h-7 rounded-lg hover:bg-blue-50 flex items-center justify-center transition-colors group"
+                                                    className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                                                    style={{ color: "var(--text-muted)" }}
+                                                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#EFF6FF"; (e.currentTarget as HTMLElement).style.color = "#3B82F6"; }}
+                                                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
                                                     title="Edit"
                                                 >
-                                                    <Pencil size={13} className="text-gray-300 group-hover:text-blue-500" />
+                                                    <Pencil size={13} />
                                                 </button>
                                                 <button
                                                     onClick={() => setDeleteId(u.id)}
-                                                    className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center transition-colors group"
+                                                    className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                                                    style={{ color: "var(--text-muted)" }}
+                                                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--danger-bg)"; (e.currentTarget as HTMLElement).style.color = "var(--danger)"; }}
+                                                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
                                                     title="Hapus"
                                                 >
-                                                    <Trash2 size={13} className="text-gray-300 group-hover:text-red-500" />
+                                                    <Trash2 size={13} />
                                                 </button>
                                             </div>
                                         </td>
@@ -349,30 +420,49 @@ export default function UsersPage() {
                     )}
                 </div>
 
-                {/* Footer count */}
+                {/* Footer */}
                 {!loading && (
-                    <div className="px-5 py-3 border-t border-gray-50 text-xs text-gray-400">
-                        Menampilkan {filteredUsers.length} dari {users.length} pengguna
+                    <div
+                        className="px-5 py-3 text-xs"
+                        style={{
+                            borderTop: "1px solid var(--border-subtle)",
+                            color: "var(--text-muted)",
+                        }}
+                    >
+                        Menampilkan{" "}
+                        <span className="font-semibold" style={{ color: "var(--text-secondary)" }}>
+                            {filteredUsers.length}
+                        </span>{" "}
+                        dari{" "}
+                        <span className="font-semibold" style={{ color: "var(--text-secondary)" }}>
+                            {users.length}
+                        </span>{" "}
+                        pengguna
                     </div>
                 )}
             </div>
 
-            {/* ── Create User Modal ── */}
+            {/* ── Create Modal ── */}
             {showCreate && (
                 <Modal
                     title={`Tambah ${createRole === "teacher" ? "Guru" : "Siswa"}`}
                     onClose={() => { setShowCreate(false); setFormError(""); }}
                 >
-                    {/* Role toggle inside modal */}
-                    <div className="flex gap-2 mb-5 bg-gray-100 p-1 rounded-xl">
+                    {/* Role toggle */}
+                    <div
+                        className="flex gap-1 mb-5 p-1 rounded-xl"
+                        style={{ background: "var(--bg-canvas)" }}
+                    >
                         {(["teacher", "student"] as const).map((r) => (
                             <button
                                 key={r}
                                 onClick={() => setCreateRole(r)}
-                                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${createRole === r
-                                    ? "bg-white text-[#006D77] shadow-sm"
-                                    : "text-gray-400"
-                                    }`}
+                                className="flex-1 py-2 rounded-lg text-xs font-semibold transition-all"
+                                style={{
+                                    background: createRole === r ? "var(--bg-surface)" : "transparent",
+                                    color: createRole === r ? "var(--accent)" : "var(--text-secondary)",
+                                    boxShadow: createRole === r ? "var(--shadow-sm)" : "none",
+                                }}
                             >
                                 {r === "teacher" ? "👨‍🏫 Guru" : "👤 Siswa"}
                             </button>
@@ -380,29 +470,27 @@ export default function UsersPage() {
                     </div>
 
                     {formError && (
-                        <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-4">
+                        <div
+                            className="text-xs rounded-xl px-3 py-2.5 mb-4"
+                            style={{ background: "var(--danger-bg)", color: "var(--danger)", border: "1px solid #F5C5C0" }}
+                        >
                             {formError}
-                        </p>
+                        </div>
                     )}
 
                     <form onSubmit={handleCreate} className="space-y-4">
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                Email <span className="text-red-400">*</span>
-                            </label>
+                        <FormField label="Email" >
                             <input
                                 type="email"
                                 required
                                 placeholder="contoh@email.com"
                                 value={form.email}
                                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20 transition-all"
+                                className={inputClass}
+                                style={inputStyle}
                             />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                Password <span className="text-red-400">*</span>
-                            </label>
+                        </FormField>
+                        <FormField label="Password">
                             <input
                                 type="password"
                                 required
@@ -410,44 +498,42 @@ export default function UsersPage() {
                                 placeholder="Min. 6 karakter"
                                 value={form.password}
                                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20 transition-all"
+                                className={inputClass}
+                                style={inputStyle}
                             />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                Nama Lengkap <span className="text-gray-300 font-normal">(opsional)</span>
-                            </label>
+                        </FormField>
+                        <FormField label="Nama Lengkap" optional>
                             <input
                                 type="text"
                                 placeholder="Nama lengkap"
                                 value={form.name}
                                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20 transition-all"
+                                className={inputClass}
+                                style={inputStyle}
                             />
-                        </div>
+                        </FormField>
                         {createRole === "student" && (
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                    NIS <span className="text-gray-300 font-normal">(opsional)</span>
-                                </label>
+                            <FormField label="NIS" optional>
                                 <input
                                     type="text"
                                     placeholder="Nomor Induk Siswa"
                                     value={form.nis}
                                     onChange={(e) => setForm({ ...form, nis: e.target.value })}
-                                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20 transition-all"
+                                    className={inputClass}
+                                    style={inputStyle}
                                 />
-                            </div>
+                            </FormField>
                         )}
-                        <div className="flex items-center gap-2 pt-1">
+                        <div className="flex items-center gap-2.5 pt-1">
                             <input
                                 type="checkbox"
                                 id="active-create"
                                 checked={form.active}
                                 onChange={(e) => setForm({ ...form, active: e.target.checked })}
-                                className="w-4 h-4 rounded accent-[#006D77]"
+                                className="w-4 h-4 rounded"
+                                style={{ accentColor: "var(--accent)" }}
                             />
-                            <label htmlFor="active-create" className="text-sm text-gray-600">
+                            <label htmlFor="active-create" className="text-sm" style={{ color: "var(--text-secondary)" }}>
                                 Aktifkan akun setelah dibuat
                             </label>
                         </div>
@@ -456,7 +542,8 @@ export default function UsersPage() {
                             <button
                                 type="button"
                                 onClick={() => { setShowCreate(false); setFormError(""); }}
-                                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                                className="flex-1 py-2.5 rounded-xl border text-sm font-medium transition-colors"
+                                style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
                             >
                                 Batal
                             </button>
@@ -464,7 +551,7 @@ export default function UsersPage() {
                                 type="submit"
                                 disabled={formLoading}
                                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
-                                style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}
+                                style={{ background: "var(--accent)" }}
                             >
                                 {formLoading ? "Menyimpan..." : "Simpan"}
                             </button>
@@ -475,44 +562,38 @@ export default function UsersPage() {
 
             {/* ── Edit Modal ── */}
             {editUser && (
-                <Modal
-                    title={`Edit Pengguna — ${editUser.email}`}
-                    onClose={() => setEditUser(null)}
-                >
+                <Modal title={`Edit — ${editUser.email}`} onClose={() => setEditUser(null)}>
                     <form onSubmit={handleEdit} className="space-y-4">
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                Nama Lengkap
-                            </label>
+                        <FormField label="Nama Lengkap">
                             <input
                                 type="text"
                                 placeholder="Nama lengkap"
                                 value={editForm.name}
                                 onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20 transition-all"
+                                className={inputClass}
+                                style={inputStyle}
                             />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                NIS
-                            </label>
+                        </FormField>
+                        <FormField label="NIS">
                             <input
                                 type="text"
                                 placeholder="Nomor Induk Siswa"
                                 value={editForm.nis}
                                 onChange={(e) => setEditForm({ ...editForm, nis: e.target.value })}
-                                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20 transition-all"
+                                className={inputClass}
+                                style={inputStyle}
                             />
-                        </div>
-                        <div className="flex items-center gap-2">
+                        </FormField>
+                        <div className="flex items-center gap-2.5">
                             <input
                                 type="checkbox"
                                 id="active-edit"
                                 checked={editForm.active}
                                 onChange={(e) => setEditForm({ ...editForm, active: e.target.checked })}
-                                className="w-4 h-4 rounded accent-[#006D77]"
+                                className="w-4 h-4 rounded"
+                                style={{ accentColor: "var(--accent)" }}
                             />
-                            <label htmlFor="active-edit" className="text-sm text-gray-600">
+                            <label htmlFor="active-edit" className="text-sm" style={{ color: "var(--text-secondary)" }}>
                                 Akun aktif
                             </label>
                         </div>
@@ -520,14 +601,15 @@ export default function UsersPage() {
                             <button
                                 type="button"
                                 onClick={() => setEditUser(null)}
-                                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                                className="flex-1 py-2.5 rounded-xl border text-sm font-medium transition-colors"
+                                style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
                             >
                                 Batal
                             </button>
                             <button
                                 type="submit"
                                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white"
-                                style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}
+                                style={{ background: "var(--accent)" }}
                             >
                                 Simpan Perubahan
                             </button>
@@ -539,21 +621,23 @@ export default function UsersPage() {
             {/* ── Delete Confirm ── */}
             {deleteId && (
                 <Modal title="Hapus Pengguna?" onClose={() => setDeleteId(null)}>
-                    <p className="text-sm text-gray-600 mb-6">
+                    <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
                         Tindakan ini tidak dapat dibatalkan. Akun pengguna ini akan dihapus secara permanen.
                     </p>
                     <div className="flex gap-3">
                         <button
                             onClick={() => setDeleteId(null)}
-                            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                            className="flex-1 py-2.5 rounded-xl border text-sm font-medium transition-colors"
+                            style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
                         >
                             Batal
                         </button>
                         <button
                             onClick={handleDelete}
-                            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+                            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-colors"
+                            style={{ background: "var(--danger)" }}
                         >
-                            <Trash2 size={14} />
+                            <Trash2 size={13} />
                             Hapus
                         </button>
                     </div>

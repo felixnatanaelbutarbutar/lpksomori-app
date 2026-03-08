@@ -1,163 +1,445 @@
-import { Users, GraduationCap, CalendarDays, CheckCircle2, TrendingUp } from "lucide-react";
+"use client";
 
-const stats = [
-    {
-        name: "Siswa Aktif",
-        nameJa: "在籍学生数",
-        value: "420",
-        change: "+12 bulan ini",
-        icon: Users,
-        accent: "#006D77",
-        bg: "bg-[#006D77]/8",
-    },
-    {
-        name: "Total Kelas",
-        nameJa: "総クラス数",
-        value: "15",
-        change: "3 tahun ajaran",
-        icon: GraduationCap,
-        accent: "#E9C46A",
-        bg: "bg-[#E9C46A]/10",
-    },
-    {
-        name: "Tahun Aktif",
-        nameJa: "現年度",
-        value: "2025/2026",
-        change: "Sedang berjalan",
-        icon: CalendarDays,
-        accent: "#4ECDC4",
-        bg: "bg-[#4ECDC4]/10",
-    },
-    {
-        name: "Ujian Selesai",
-        nameJa: "完了試験数",
-        value: "1,234",
-        change: "+48 minggu ini",
-        icon: CheckCircle2,
-        accent: "#9B5DE5",
-        bg: "bg-[#9B5DE5]/10",
-    },
-];
+import { useEffect, useState } from "react";
+import {
+    Users,
+    GraduationCap,
+    CalendarDays,
+    CheckCircle2,
+    BookOpen,
+    ArrowUpRight,
+} from "lucide-react";
 
-const recentActivities = [
-    { text: "Quiz JLPT N4 berhasil diselesaikan oleh Kelas 3", time: "2 jam lalu", dot: "#006D77" },
-    { text: "Tahun Ajaran 2025/2026 diinisialisasi dengan 5 kelas default", time: "1 hari lalu", dot: "#E9C46A" },
-    { text: "Kelas 2 menambahkan Aktivitas Listening (聴解)", time: "2 hari lalu", dot: "#4ECDC4" },
-    { text: "20 akun siswa baru berhasil didaftarkan oleh Admin", time: "3 hari lalu", dot: "#9B5DE5" },
-];
+const API_BASE = process.env.NEXT_PUBLIC_API_URL
+    ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1`
+    : "http://localhost:8080/api/v1";
 
-const quickActions = [
-    { label: "Buat Ujian", labelJa: "試験を作成", accent: "#006D77", emoji: "📝" },
-    { label: "Tahun Ajaran Baru", labelJa: "新年度", accent: "#E9C46A", emoji: "📅" },
-    { label: "Tambah Siswa", labelJa: "学生追加", accent: "#4ECDC4", emoji: "👤" },
-    { label: "Bank Soal", labelJa: "問題集", accent: "#9B5DE5", emoji: "📚" },
-];
+interface DashboardStats {
+    active_students: number;
+    total_classes: number;
+    active_year: string;
+    total_years: number;
+    completed_exams: number;
+    total_teachers: number;
+    new_students_month: number;
+}
+
+function StatCard({
+    label,
+    labelJa,
+    value,
+    sub,
+    icon: Icon,
+    accentColor,
+    accentBg,
+    loading,
+    trend,
+}: {
+    label: string;
+    labelJa: string;
+    value: string | number;
+    sub: string;
+    icon: React.ElementType;
+    accentColor: string;
+    accentBg: string;
+    loading: boolean;
+    trend?: string;
+}) {
+    return (
+        <div
+            className="group relative rounded-2xl p-5 cursor-default transition-all duration-300"
+            style={{
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border)",
+                boxShadow: "var(--shadow-sm)",
+            }}
+            onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.boxShadow = "var(--shadow-md)";
+                (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
+            }}
+            onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.boxShadow = "var(--shadow-sm)";
+                (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
+            }}
+        >
+            <div className="flex items-start justify-between mb-5">
+                <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center"
+                    style={{ background: accentBg }}
+                >
+                    <Icon size={18} style={{ color: accentColor }} />
+                </div>
+                {trend && !loading && (
+                    <span
+                        className="flex items-center gap-0.5 text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                        style={{
+                            background: "var(--success-bg)",
+                            color: "var(--success)",
+                        }}
+                    >
+                        <ArrowUpRight size={11} />
+                        {trend}
+                    </span>
+                )}
+            </div>
+
+            {loading ? (
+                <div className="space-y-2">
+                    <div className="h-8 w-20 rounded-xl skeleton" />
+                    <div className="h-4 w-28 rounded-lg skeleton" />
+                </div>
+            ) : (
+                <>
+                    <p
+                        className="text-3xl font-bold mb-0.5 tracking-tight"
+                        style={{ color: "var(--text-primary)", fontFamily: "var(--font-serif)" }}
+                    >
+                        {value || "—"}
+                    </p>
+                    <p className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>
+                        {label}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                        {labelJa}
+                    </p>
+                    <p
+                        className="text-xs mt-4 pt-4"
+                        style={{
+                            color: "var(--text-muted)",
+                            borderTop: "1px solid var(--border-subtle)",
+                        }}
+                    >
+                        {sub}
+                    </p>
+                </>
+            )}
+        </div>
+    );
+}
+
+function SummaryRow({
+    label,
+    desc,
+    value,
+    icon: Icon,
+    color,
+    bg,
+    loading,
+}: {
+    label: string;
+    desc: string;
+    value: string | number;
+    icon: React.ElementType;
+    color: string;
+    bg: string;
+    loading: boolean;
+}) {
+    return (
+        <div
+            className="flex items-center gap-4 px-5 py-3.5 transition-colors"
+            style={{ borderBottom: "1px solid var(--border-subtle)" }}
+            onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background = "var(--bg-subtle)";
+            }}
+            onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = "transparent";
+            }}
+        >
+            <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                style={{ background: bg }}
+            >
+                <Icon size={15} style={{ color }} />
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                    {label}
+                </p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    {desc}
+                </p>
+            </div>
+            <div>
+                {loading ? (
+                    <div className="h-5 w-10 rounded skeleton" />
+                ) : (
+                    <span className="text-lg font-bold" style={{ color }}>
+                        {value}
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+}
 
 export default function DashboardPage() {
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [now, setNow] = useState("");
+    const [userName, setUserName] = useState("Pengguna");
+
+    useEffect(() => {
+        const d = new Date();
+        setNow(
+            d.toLocaleDateString("id-ID", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+            })
+        );
+
+        try {
+            const u = JSON.parse(localStorage.getItem("mori_user") ?? "{}");
+            setUserName(u.Name || u.name || "Pengguna");
+        } catch { }
+
+        fetch(`${API_BASE}/stats`)
+            .then((r) => r.json())
+            .then((j) => setStats(j))
+            .catch(() => setStats(null))
+            .finally(() => setLoading(false));
+    }, []);
+
+    const statCards = [
+        {
+            label: "Siswa Aktif",
+            labelJa: "在籍学生数",
+            value: stats?.active_students ?? 0,
+            sub: stats?.new_students_month
+                ? `+${stats.new_students_month} baru bulan ini`
+                : "Belum ada data bulan ini",
+            icon: Users,
+            accentColor: "var(--accent)",
+            accentBg: "var(--accent-soft)",
+            trend: stats?.new_students_month ? `+${stats.new_students_month}` : undefined,
+        },
+        {
+            label: "Total Kelas",
+            labelJa: "総クラス数",
+            value: stats?.total_classes ?? 0,
+            sub: stats?.active_year ? `Tahun Ajaran ${stats.active_year}` : "Tidak ada tahun aktif",
+            icon: GraduationCap,
+            accentColor: "var(--gold)",
+            accentBg: "var(--gold-soft)",
+        },
+        {
+            label: "Tahun Aktif",
+            labelJa: "現年度",
+            value: stats?.active_year || "—",
+            sub: stats?.total_years ? `${stats.total_years} tahun ajaran tercatat` : "Sedang berjalan",
+            icon: CalendarDays,
+            accentColor: "var(--role-student)",
+            accentBg: "var(--role-student-bg)",
+        },
+        {
+            label: "Jawaban Ujian",
+            labelJa: "完了試験数",
+            value: (stats?.completed_exams ?? 0).toLocaleString("id-ID"),
+            sub: `${stats?.total_teachers ?? 0} guru aktif`,
+            icon: CheckCircle2,
+            accentColor: "#6D5ACD",
+            accentBg: "#EEEEFB",
+        },
+    ];
+
+    const summaryRows = [
+        {
+            label: "Total Guru",
+            desc: "Pengajar terdaftar",
+            value: stats?.total_teachers ?? "—",
+            icon: BookOpen,
+            color: "var(--accent)",
+            bg: "var(--accent-soft)",
+        },
+        {
+            label: "Siswa Aktif",
+            desc: "Dengan status aktif",
+            value: stats?.active_students ?? "—",
+            icon: Users,
+            color: "var(--role-student)",
+            bg: "var(--role-student-bg)",
+        },
+        {
+            label: "Kelas Berjalan",
+            desc: `Tahun ajaran ${stats?.active_year || "—"}`,
+            value: stats?.total_classes ?? "—",
+            icon: GraduationCap,
+            color: "var(--gold)",
+            bg: "var(--gold-soft)",
+        },
+        {
+            label: "Jawaban Terkumpul",
+            desc: "Total dari semua ujian",
+            value: (stats?.completed_exams ?? 0).toLocaleString("id-ID"),
+            icon: CheckCircle2,
+            color: "#6D5ACD",
+            bg: "#EEEEFB",
+        },
+    ];
+
+    const quickActions = [
+        { label: "Manajemen Pengguna", labelJa: "ユーザー管理", color: "var(--accent)", bg: "var(--accent-soft)", emoji: "👥", href: "/dashboard/students" },
+        { label: "Tahun Ajaran", labelJa: "新年度", color: "var(--gold)", bg: "var(--gold-soft)", emoji: "📅", href: "/dashboard/academic" },
+        { label: "Kelola Kelas", labelJa: "クラス管理", color: "var(--role-student)", bg: "var(--role-student-bg)", emoji: "🏫", href: "/dashboard/classes" },
+        { label: "Mata Pelajaran", labelJa: "科目管理", color: "#6D5ACD", bg: "#EEEEFB", emoji: "📚", href: "/dashboard/courses" },
+    ];
+
+    const firstWord = userName.split(" ")[0];
+
     return (
-        <div className="space-y-8 max-w-7xl mx-auto">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div className="space-y-7 max-w-7xl mx-auto">
+            {/* ── Page Header ── */}
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-serif font-bold text-[#0D1B2A]">
-                        Selamat Datang 👋
+                    <p
+                        className="text-xs font-semibold uppercase tracking-[0.12em] mb-1"
+                        style={{ color: "var(--text-muted)" }}
+                    >
+                        Selamat datang kembali
+                    </p>
+                    <h1
+                        className="text-2xl font-bold"
+                        style={{
+                            color: "var(--text-primary)",
+                            fontFamily: "var(--font-serif)",
+                            letterSpacing: "-0.02em",
+                        }}
+                    >
+                        {firstWord}
+                        <span className="ml-2 inline-block animate-bounce">👋</span>
                     </h1>
-                    <p className="text-gray-500 text-sm mt-0.5">
-                        LPK SO Mori Centre — Portal Akademik Tahun 2025/2026
+                    <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
+                        LPK SO Mori Centre
+                        {stats?.active_year ? ` — Tahun Ajaran ${stats.active_year}` : ""}
                     </p>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-gray-400 bg-white border border-gray-100 rounded-full px-4 py-2 shadow-sm w-fit">
-                    <TrendingUp size={13} className="text-[#006D77]" />
-                    Data ter-update: Hari ini, 10:15 WIB
+
+                <div
+                    className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium w-fit shrink-0"
+                    style={{
+                        background: "var(--bg-surface)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text-secondary)",
+                        boxShadow: "var(--shadow-sm)",
+                    }}
+                >
+                    <CalendarDays size={12} style={{ color: "var(--accent)" }} />
+                    {now}
                 </div>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-                {stats.map((stat) => (
-                    <div
-                        key={stat.name}
-                        className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-200 relative overflow-hidden group"
-                    >
-                        {/* Left accent border */}
-                        <div
-                            className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full"
-                            style={{ background: stat.accent }}
-                        />
-
-                        <div className="flex items-start justify-between mb-4">
-                            <div className={`${stat.bg} w-10 h-10 rounded-xl flex items-center justify-center`}>
-                                <stat.icon size={18} style={{ color: stat.accent }} />
-                            </div>
-                        </div>
-
-                        <p className="text-2xl font-bold text-[#0D1B2A] mb-1">{stat.value}</p>
-                        <p className="text-sm font-medium text-gray-700">{stat.name}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{stat.nameJa}</p>
-                        <div className="mt-3 pt-3 border-t border-gray-50">
-                            <p className="text-xs text-gray-400">{stat.change}</p>
-                        </div>
-                    </div>
+            {/* ── Stats Grid ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                {statCards.map((s) => (
+                    <StatCard key={s.label} {...s} loading={loading} />
                 ))}
             </div>
 
-            {/* Bottom Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                {/* Recent Activities — 3/5 */}
-                <div className="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-50">
-                        <h3 className="font-semibold text-[#0D1B2A] text-sm">Aktivitas Terbaru</h3>
-                        <span className="text-xs text-[#006D77] font-medium cursor-pointer hover:underline">
-                            Lihat semua →
+            {/* ── Bottom Row ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+                {/* Summary table — 3 cols */}
+                <div
+                    className="lg:col-span-3 rounded-2xl overflow-hidden"
+                    style={{
+                        background: "var(--bg-surface)",
+                        border: "1px solid var(--border)",
+                        boxShadow: "var(--shadow-sm)",
+                    }}
+                >
+                    <div
+                        className="flex items-center justify-between px-5 py-4"
+                        style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                    >
+                        <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                            Ringkasan Platform
+                        </h3>
+                        <span
+                            className="text-[10px] font-semibold uppercase tracking-wider"
+                            style={{ color: "var(--text-muted)" }}
+                        >
+                            プラットフォーム概要
                         </span>
                     </div>
-                    <div className="divide-y divide-gray-50">
-                        {recentActivities.map((a, i) => (
-                            <div key={i} className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50/50 transition-colors">
-                                <div className="mt-1.5 flex-shrink-0">
-                                    <div className="w-2 h-2 rounded-full" style={{ background: a.dot }} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm text-gray-700 leading-snug">{a.text}</p>
-                                    <p className="text-xs text-gray-400 mt-1">{a.time}</p>
-                                </div>
-                            </div>
+                    <div>
+                        {summaryRows.map((row, i) => (
+                            <SummaryRow key={i} {...row} loading={loading} />
                         ))}
                     </div>
                 </div>
 
-                {/* Quick Actions — 2/5 */}
-                <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-50">
-                        <h3 className="font-semibold text-[#0D1B2A] text-sm">Aksi Cepat</h3>
+                {/* Quick Actions — 2 cols */}
+                <div
+                    className="lg:col-span-2 rounded-2xl flex flex-col overflow-hidden"
+                    style={{
+                        background: "var(--bg-surface)",
+                        border: "1px solid var(--border)",
+                        boxShadow: "var(--shadow-sm)",
+                    }}
+                >
+                    <div
+                        className="px-5 py-4"
+                        style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                    >
+                        <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                            Aksi Cepat
+                        </h3>
                     </div>
-                    <div className="p-4 grid grid-cols-2 gap-3">
+
+                    <div className="p-4 grid grid-cols-2 gap-3 flex-1">
                         {quickActions.map((action) => (
-                            <button
+                            <a
                                 key={action.label}
-                                className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm bg-gray-50/50 hover:bg-white transition-all duration-150 group text-center"
+                                href={action.href}
+                                className="flex flex-col items-center gap-2 p-4 rounded-xl text-center no-underline transition-all duration-200 group"
+                                style={{
+                                    background: "var(--bg-canvas)",
+                                    border: "1px solid var(--border)",
+                                }}
+                                onMouseEnter={(e) => {
+                                    (e.currentTarget as HTMLElement).style.background = action.bg;
+                                    (e.currentTarget as HTMLElement).style.borderColor = action.color + "40";
+                                    (e.currentTarget as HTMLElement).style.boxShadow = `0 4px 12px ${action.color}15`;
+                                }}
+                                onMouseLeave={(e) => {
+                                    (e.currentTarget as HTMLElement).style.background = "var(--bg-canvas)";
+                                    (e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
+                                    (e.currentTarget as HTMLElement).style.boxShadow = "none";
+                                }}
                             >
-                                <span className="text-2xl">{action.emoji}</span>
+                                <span className="text-2xl transition-transform duration-200 group-hover:scale-110">
+                                    {action.emoji}
+                                </span>
                                 <div>
-                                    <p className="text-xs font-semibold text-[#0D1B2A] group-hover:text-[#006D77] transition-colors">
+                                    <p className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
                                         {action.label}
                                     </p>
-                                    <p className="text-xs text-gray-400 mt-0.5">{action.labelJa}</p>
+                                    <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+                                        {action.labelJa}
+                                    </p>
                                 </div>
-                            </button>
+                            </a>
                         ))}
                     </div>
 
-                    {/* Branding mini-card */}
+                    {/* Branding card */}
                     <div
-                        className="mx-4 mb-4 rounded-xl p-4 text-white"
+                        className="mx-4 mb-4 rounded-xl p-4 text-white relative overflow-hidden"
                         style={{
-                            background: "linear-gradient(135deg, #006D77 0%, #004f54 100%)",
+                            background: "var(--sidebar-bg)",
                         }}
                     >
-                        <p className="text-xs font-semibold mb-1">森センター</p>
-                        <p className="text-xs opacity-70 leading-relaxed">
-                            日本語職業訓練センター<br />Academic Year 2025/2026
+                        <div
+                            className="absolute -right-6 -top-6 w-20 h-20 rounded-full opacity-10"
+                            style={{ background: "var(--accent)" }}
+                        />
+                        <p className="text-xs font-bold mb-1 relative z-10" style={{ color: "rgba(255,255,255,0.9)" }}>
+                            森センター
+                        </p>
+                        <p className="text-[11px] leading-relaxed relative z-10" style={{ color: "rgba(255,255,255,0.4)" }}>
+                            日本語職業訓練センター
+                            <br />
+                            {stats?.active_year ? `Academic Year ${stats.active_year}` : "Academic Portal"}
                         </p>
                     </div>
                 </div>
