@@ -14,7 +14,10 @@ import {
     Users,
     ChevronRight,
     Search,
+    Lock,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import Cookies from "js-cookie";
 
 const API = "http://localhost:8080/api/v1";
 
@@ -27,8 +30,18 @@ interface AcademicYear {
 interface Class {
     id: number;
     name: string;
-    level: number;
+    bab_start: number;
+    bab_end: number;
+    teacher_id: number | null;
+    teacher?: {
+        name: string;
+    };
     academic_year_id: number;
+}
+
+interface Teacher {
+    id: number;
+    name: string;
 }
 
 interface Student {
@@ -85,14 +98,17 @@ export default function ClassesPage() {
 
     // Create
     const [showCreate, setShowCreate] = useState(false);
-    const [createForm, setCreateForm] = useState({ name: "", level: "" });
+    const [createForm, setCreateForm] = useState({ name: "", bab_start: "", bab_end: "", teacher_id: "" });
     const [createError, setCreateError] = useState("");
     const [createLoading, setCreateLoading] = useState(false);
 
-    // Edit (rename)
+    // Edit (rename & update module/teacher)
     const [editClass, setEditClass] = useState<Class | null>(null);
-    const [editName, setEditName] = useState("");
+    const [editForm, setEditForm] = useState({ name: "", bab_start: "", bab_end: "", teacher_id: "" });
     const [editLoading, setEditLoading] = useState(false);
+
+    // Teachers
+    const [teachers, setTeachers] = useState<Teacher[]>([]);
 
     // Delete
     const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -104,27 +120,60 @@ export default function ClassesPage() {
     const [enrollLoading, setEnrollLoading] = useState(false);
     const [studentSearch, setStudentSearch] = useState("");
 
-    const fetchAll = useCallback(async () => {
+    const router = useRouter();
+
+    const [allYears, setAllYears] = useState<AcademicYear[]>([]);
+    const [selectedYearId, setSelectedYearId] = useState<number | "all">("all");
+    const [initialLoaded, setInitialLoaded] = useState(false);
+
+    // Initial load: fetch years, set default filter to active year
+    useEffect(() => {
+        const loadInitial = async () => {
+            try {
+                // Fetch academic years
+                const yearRes = await fetch(`${API}/academic-years`, {
+                    headers: { Authorization: `Bearer ${Cookies.get("token")}` }
+                });
+                const yearJson = await yearRes.json();
+                const years: AcademicYear[] = yearJson.data || [];
+                setAllYears(years);
+                const active = years.find((y) => y.is_active);
+                setActiveYear(active || null);
+                if (active) setSelectedYearId(active.id);
+
+                // Fetch teachers
+                const tRes = await fetch(`${API}/users`, {
+                    headers: { Authorization: `Bearer ${Cookies.get("token")}` }
+                });
+                if (tRes.ok) {
+                    const tJson = await tRes.json();
+                    if (tJson.data) {
+                        setTeachers(tJson.data.filter((u: any) => u.role === "teacher"));
+                    }
+                }
+            } finally {
+                setInitialLoaded(true);
+            }
+        };
+        loadInitial();
+    }, []);
+
+    const fetchClasses = useCallback(async () => {
+        if (!initialLoaded) return;
         setLoading(true);
         try {
-            const [classRes, yearRes] = await Promise.all([
-                fetch(`${API}/classes`),
-                fetch(`${API}/academic-years/active`),
-            ]);
+            const url = selectedYearId !== "all" ? `${API}/classes?academic_year_id=${selectedYearId}` : `${API}/classes`;
+            const classRes = await fetch(url, { headers: { Authorization: `Bearer ${Cookies.get("token")}` } });
             const classJson = await classRes.json();
             setClasses(classJson.data ?? []);
-            if (yearRes.ok) {
-                const yearJson = await yearRes.json();
-                setActiveYear(yearJson.data);
-            }
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [initialLoaded, selectedYearId]);
 
     useEffect(() => {
-        fetchAll();
-    }, [fetchAll]);
+        fetchClasses();
+    }, [fetchClasses]);
 
     // ── Create ──────────────────────────────────────────────────────────────────
     const handleCreate = async (e: React.FormEvent) => {
@@ -137,14 +186,16 @@ export default function ClassesPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     name: createForm.name,
-                    level: parseInt(createForm.level),
+                    bab_start: parseInt(createForm.bab_start),
+                    bab_end: parseInt(createForm.bab_end),
+                    teacher_id: createForm.teacher_id ? parseInt(createForm.teacher_id) : null,
                 }),
             });
             const json = await res.json();
             if (!res.ok) throw new Error(json.error ?? "Gagal membuat kelas");
             setShowCreate(false);
-            setCreateForm({ name: "", level: "" });
-            fetchAll();
+            setCreateForm({ name: "", bab_start: "", bab_end: "", teacher_id: "" });
+            fetchClasses();
         } catch (err: unknown) {
             setCreateError(err instanceof Error ? err.message : "Error");
         } finally {
@@ -152,8 +203,8 @@ export default function ClassesPage() {
         }
     };
 
-    // ── Rename ──────────────────────────────────────────────────────────────────
-    const handleRename = async (e: React.FormEvent) => {
+    // ── Update ──────────────────────────────────────────────────────────────────
+    const handleUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editClass) return;
         setEditLoading(true);
@@ -161,18 +212,19 @@ export default function ClassesPage() {
             const res = await fetch(`${API}/classes/${editClass.id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: editName }),
+                body: JSON.stringify({
+                    name: editForm.name,
+                    bab_start: parseInt(editForm.bab_start),
+                    bab_end: parseInt(editForm.bab_end),
+                    teacher_id: editForm.teacher_id ? parseInt(editForm.teacher_id) : null,
+                }),
             });
             const json = await res.json();
             if (!res.ok) throw new Error(json.error);
             setEditClass(null);
-            fetchAll();
-            // Also refresh enrollments panel if same class is open
-            if (enrollClass?.id === editClass.id) {
-                setEnrollClass({ ...enrollClass, name: editName });
-            }
+            fetchClasses();
         } catch (err: unknown) {
-            alert(err instanceof Error ? err.message : "Gagal mengubah nama");
+            alert(err instanceof Error ? err.message : "Gagal mengubah kelas");
         } finally {
             setEditLoading(false);
         }
@@ -184,67 +236,14 @@ export default function ClassesPage() {
         try {
             await fetch(`${API}/classes/${deleteId}`, { method: "DELETE" });
             setDeleteId(null);
-            if (enrollClass?.id === deleteId) setEnrollClass(null);
-            fetchAll();
+            fetchClasses();
         } catch { }
     };
 
-    // ── Enrollment Panel ─────────────────────────────────────────────────────────
-    const openEnrollPanel = async (cls: Class) => {
-        setEnrollClass(cls);
-        setEnrollLoading(true);
-        setStudentSearch("");
-        try {
-            const [envRes, stuRes] = await Promise.all([
-                fetch(`${API}/classes/${cls.id}/enrollments`),
-                fetch(`${API}/users?role=student`),
-            ]);
-            const envJson = await envRes.json();
-            const stuJson = await stuRes.json();
-            setEnrollments(envJson.data ?? []);
-            setAllStudents(stuJson.data ?? []);
-        } finally {
-            setEnrollLoading(false);
-        }
+    // ── Navigation to Details  ──────────────────────────────────────────────────
+    const openEnrollPanel = (cls: Class) => {
+        router.push(`/dashboard/classes/${cls.id}`);
     };
-
-    const enrollStudent = async (studentID: number) => {
-        if (!enrollClass) return;
-        try {
-            const res = await fetch(`${API}/classes/${enrollClass.id}/enrollments`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ user_id: studentID }),
-            });
-            const json = await res.json();
-            if (!res.ok) throw new Error(json.error);
-            // Refresh enrollment list only
-            const envRes = await fetch(`${API}/classes/${enrollClass.id}/enrollments`);
-            const envJson = await envRes.json();
-            setEnrollments(envJson.data ?? []);
-        } catch (err: unknown) {
-            alert(err instanceof Error ? err.message : "Gagal mendaftarkan");
-        }
-    };
-
-    const unenrollStudent = async (userID: number) => {
-        if (!enrollClass) return;
-        try {
-            await fetch(`${API}/classes/${enrollClass.id}/enrollments/${userID}`, {
-                method: "DELETE",
-            });
-            setEnrollments((prev) => prev.filter((e) => e.user_id !== userID));
-        } catch { }
-    };
-
-    const enrolledIDs = new Set(enrollments.map((e) => e.user_id));
-    const filteredStudents = allStudents.filter(
-        (s) =>
-            !enrolledIDs.has(s.id) &&
-            (s.name?.toLowerCase().includes(studentSearch.toLowerCase()) ||
-                s.email.toLowerCase().includes(studentSearch.toLowerCase()) ||
-                s.nis?.includes(studentSearch))
-    );
 
     return (
         <div className="space-y-6 max-w-6xl mx-auto">
@@ -258,33 +257,52 @@ export default function ClassesPage() {
                         Tambah, edit nama, dan kelola siswa per kelas
                     </p>
                 </div>
-                <button
-                    onClick={() => setShowCreate(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg shadow-[#006D77]/25"
-                    style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}
-                >
-                    <Plus size={16} />
-                    Tambah Kelas
-                </button>
+                {activeYear && (
+                    <button
+                        onClick={() => setShowCreate(true)}
+                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg shadow-[#006D77]/25"
+                        style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}
+                    >
+                        <Plus size={16} />
+                        Tambah Kelas
+                    </button>
+                )}
             </div>
 
             {/* Active year */}
-            {activeYear ? (
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#006D77]/6 border border-[#006D77]/15">
-                    <GraduationCap size={16} className="text-[#006D77]" />
-                    <p className="text-sm text-[#006D77] font-medium">
-                        Tahun Ajaran Aktif:{" "}
-                        <span className="font-bold">{activeYear.year_range}</span>
-                    </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                {activeYear ? (
+                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#006D77]/6 border border-[#006D77]/15">
+                        <GraduationCap size={16} className="text-[#006D77]" />
+                        <p className="text-sm text-[#006D77] font-medium">
+                            Tahun Ajaran Aktif:{" "}
+                            <span className="font-bold">{activeYear.year_range}</span>
+                        </p>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
+                        <AlertCircle size={16} className="text-amber-500" />
+                        <p className="text-sm text-amber-700">
+                            Belum ada tahun ajaran aktif. Aktifkan tahun ajaran terlebih dahulu.
+                        </p>
+                    </div>
+                )}
+
+                {/* Filter */}
+                <div className="flex items-center gap-2">
+                    <label className="text-sm font-semibold text-gray-500">Filter Tahun:</label>
+                    <select
+                        value={selectedYearId}
+                        onChange={(e) => setSelectedYearId(e.target.value === "all" ? "all" : parseInt(e.target.value))}
+                        className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] bg-white min-w-[200px]"
+                    >
+                        <option value="all">Semua Tahun Ajaran</option>
+                        {allYears.map(y => (
+                            <option key={y.id} value={y.id}>{y.year_range} {y.is_active ? "(Aktif)" : ""}</option>
+                        ))}
+                    </select>
                 </div>
-            ) : (
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
-                    <AlertCircle size={16} className="text-amber-500" />
-                    <p className="text-sm text-amber-700">
-                        Belum ada tahun ajaran aktif. Aktifkan tahun ajaran terlebih dahulu.
-                    </p>
-                </div>
-            )}
+            </div>
 
             {/* Table */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -304,7 +322,8 @@ export default function ClassesPage() {
                             <tr className="border-b border-gray-50">
                                 {[
                                     "Nama Kelas",
-                                    "Level",
+                                    "Cakupan Bab",
+                                    "Guru",
                                     "Tahun Ajaran",
                                     "Siswa",
                                     "Aksi",
@@ -320,26 +339,21 @@ export default function ClassesPage() {
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                             {[...classes]
-                                .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name))
+                                .sort((a, b) => a.bab_start - b.bab_start || a.name.localeCompare(b.name))
                                 .map((cls) => {
-                                    const isActive = activeYear?.id === cls.academic_year_id;
-                                    const isOpen = enrollClass?.id === cls.id;
+                                    const clsYear = allYears.find(y => y.id === cls.academic_year_id);
+                                    const isActive = clsYear?.is_active;
                                     return (
                                         <tr
                                             key={cls.id}
-                                            className={`hover:bg-gray-50/50 transition-colors ${isOpen ? "bg-[#006D77]/3" : ""
-                                                }`}
+                                            className="hover:bg-gray-50/50 transition-colors"
                                         >
                                             <td className="px-5 py-4">
                                                 <div className="flex items-center gap-3">
                                                     <div
-                                                        className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold text-white"
-                                                        style={{
-                                                            background:
-                                                                "linear-gradient(135deg, #006D77, #4ECDC4)",
-                                                        }}
+                                                        className="w-10 h-8 rounded-xl flex items-center justify-center text-xs font-bold text-[#006D77] bg-[#006D77]/10"
                                                     >
-                                                        {cls.level}
+                                                        {cls.bab_start}-{cls.bab_end}
                                                     </div>
                                                     <span className="font-semibold text-[#0D1B2A]">
                                                         {cls.name}
@@ -348,19 +362,24 @@ export default function ClassesPage() {
                                             </td>
                                             <td className="px-5 py-4">
                                                 <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                                                    Level {cls.level}
+                                                    Bab {cls.bab_start} - {cls.bab_end}
+                                                </span>
+                                            </td>
+                                            <td className="px-5 py-4">
+                                                <span className="text-xs text-gray-700">
+                                                    {cls.teacher?.name || <span className="text-gray-400 italic">Belum ditentukan</span>}
                                                 </span>
                                             </td>
                                             <td className="px-5 py-4">
                                                 <span
                                                     className={`text-xs font-medium px-2 py-0.5 rounded-full ${isActive
-                                                            ? "bg-emerald-50 text-emerald-600"
-                                                            : "bg-gray-100 text-gray-400"
+                                                        ? "bg-emerald-50 text-emerald-600"
+                                                        : "bg-gray-100 text-gray-500"
                                                         }`}
                                                 >
                                                     {isActive
-                                                        ? `✓ ${activeYear?.year_range}`
-                                                        : `TA #${cls.academic_year_id}`}
+                                                        ? `✓ ${clsYear?.year_range}`
+                                                        : `${clsYear?.year_range || "TA #" + cls.academic_year_id}`}
                                                 </span>
                                             </td>
                                             <td className="px-5 py-4">
@@ -376,19 +395,26 @@ export default function ClassesPage() {
                                             <td className="px-5 py-4">
                                                 <div className="flex items-center gap-1">
                                                     {/* Edit name */}
-                                                    <button
-                                                        onClick={() => {
-                                                            setEditClass(cls);
-                                                            setEditName(cls.name);
-                                                        }}
-                                                        className="w-7 h-7 rounded-lg hover:bg-blue-50 flex items-center justify-center group"
-                                                        title="Edit nama kelas"
-                                                    >
-                                                        <Pencil
-                                                            size={13}
-                                                            className="text-gray-300 group-hover:text-blue-500"
-                                                        />
-                                                    </button>
+                                                    {isActive && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditClass(cls);
+                                                                setEditForm({
+                                                                    name: cls.name,
+                                                                    bab_start: String(cls.bab_start),
+                                                                    bab_end: String(cls.bab_end),
+                                                                    teacher_id: cls.teacher_id ? String(cls.teacher_id) : "",
+                                                                });
+                                                            }}
+                                                            className="w-7 h-7 rounded-lg hover:bg-blue-50 flex items-center justify-center group"
+                                                            title="Edit nama kelas"
+                                                        >
+                                                            <Pencil
+                                                                size={13}
+                                                                className="text-gray-300 group-hover:text-blue-500"
+                                                            />
+                                                        </button>
+                                                    )}
                                                     {/* Assign siswa */}
                                                     <button
                                                         onClick={() => openEnrollPanel(cls)}
@@ -401,16 +427,23 @@ export default function ClassesPage() {
                                                         />
                                                     </button>
                                                     {/* Delete */}
-                                                    <button
-                                                        onClick={() => setDeleteId(cls.id)}
-                                                        className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center group"
-                                                        title="Hapus kelas"
-                                                    >
-                                                        <Trash2
-                                                            size={13}
-                                                            className="text-gray-300 group-hover:text-red-500"
-                                                        />
-                                                    </button>
+                                                    {isActive && (
+                                                        <button
+                                                            onClick={() => setDeleteId(cls.id)}
+                                                            className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center group"
+                                                            title="Hapus kelas"
+                                                        >
+                                                            <Trash2
+                                                                size={13}
+                                                                className="text-gray-300 group-hover:text-red-500"
+                                                            />
+                                                        </button>
+                                                    )}
+                                                    {!isActive && (
+                                                        <div className="ml-2 flex flex-col items-center justify-center text-gray-400" title="Terkunci (TA Tidak Aktif)">
+                                                            <Lock size={13} />
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -420,163 +453,6 @@ export default function ClassesPage() {
                     </table>
                 )}
             </div>
-
-            {/* ── Enrollment Slide Panel ── */}
-            {enrollClass && (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50 bg-[#006D77]/4">
-                        <div className="flex items-center gap-3">
-                            <Users size={16} className="text-[#006D77]" />
-                            <div>
-                                <h3 className="font-semibold text-[#0D1B2A] text-sm">
-                                    Kelola Siswa — {enrollClass.name}
-                                </h3>
-                                <p className="text-xs text-gray-400 mt-0.5">
-                                    {enrollments.length} siswa terdaftar
-                                </p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => setEnrollClass(null)}
-                            className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center"
-                        >
-                            <X size={15} className="text-gray-400" />
-                        </button>
-                    </div>
-
-                    {enrollLoading ? (
-                        <div className="flex items-center justify-center py-10 gap-2 text-gray-400 text-sm">
-                            <div className="w-4 h-4 border-2 border-[#006D77] border-t-transparent rounded-full animate-spin" />
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-50">
-                            {/* Enrolled students */}
-                            <div className="p-5">
-                                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                                    Siswa Terdaftar ({enrollments.length})
-                                </h4>
-                                {enrollments.length === 0 ? (
-                                    <div className="flex flex-col items-center py-8 gap-2">
-                                        <Users size={28} className="text-gray-200" />
-                                        <p className="text-xs text-gray-400">
-                                            Belum ada siswa di kelas ini
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                                        {enrollments.map((e) => (
-                                            <div
-                                                key={e.id}
-                                                className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 hover:bg-gray-100/70 transition-colors"
-                                            >
-                                                <div className="flex items-center gap-2.5">
-                                                    <div
-                                                        className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                                                        style={{
-                                                            background:
-                                                                "linear-gradient(135deg, #7B5EA7, #5a3d85)",
-                                                        }}
-                                                    >
-                                                        {(e.user?.name || e.user?.email || "?")[0].toUpperCase()}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-xs font-semibold text-gray-700">
-                                                            {e.user?.name || "(Belum diisi)"}
-                                                        </p>
-                                                        <p className="text-xs text-gray-400">
-                                                            {e.user?.nis ? `NIS: ${e.user.nis}` : e.user?.email}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={() => unenrollStudent(e.user_id)}
-                                                    className="w-6 h-6 rounded-lg hover:bg-red-100 flex items-center justify-center group"
-                                                    title="Keluarkan dari kelas"
-                                                >
-                                                    <UserMinus
-                                                        size={12}
-                                                        className="text-gray-300 group-hover:text-red-500"
-                                                    />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Available students to enroll */}
-                            <div className="p-5">
-                                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                                    Tambah Siswa
-                                </h4>
-                                {/* Search */}
-                                <div className="relative mb-3">
-                                    <Search
-                                        size={13}
-                                        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300"
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="Cari nama, email, atau NIS..."
-                                        value={studentSearch}
-                                        onChange={(e) => setStudentSearch(e.target.value)}
-                                        className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20"
-                                    />
-                                </div>
-
-                                {filteredStudents.length === 0 ? (
-                                    <div className="flex flex-col items-center py-8 gap-2">
-                                        <Users size={24} className="text-gray-200" />
-                                        <p className="text-xs text-gray-400">
-                                            {allStudents.length === 0
-                                                ? "Belum ada akun siswa"
-                                                : studentSearch
-                                                    ? "Tidak ada siswa yang cocok"
-                                                    : "Semua siswa sudah terdaftar di kelas ini"}
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                                        {filteredStudents.map((s) => (
-                                            <div
-                                                key={s.id}
-                                                className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 hover:bg-gray-100/70 transition-colors"
-                                            >
-                                                <div className="flex items-center gap-2.5">
-                                                    <div
-                                                        className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                                                        style={{
-                                                            background:
-                                                                "linear-gradient(135deg, #7B5EA7, #5a3d85)",
-                                                        }}
-                                                    >
-                                                        {(s.name || s.email)[0].toUpperCase()}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-xs font-semibold text-gray-700">
-                                                            {s.name || "(Belum diisi)"}
-                                                        </p>
-                                                        <p className="text-xs text-gray-400">
-                                                            {s.nis ? `NIS: ${s.nis}` : s.email}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={() => enrollStudent(s.id)}
-                                                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-[#006D77] bg-[#006D77]/8 hover:bg-[#006D77]/15 transition-colors"
-                                                >
-                                                    <UserPlus size={11} />
-                                                    Daftar
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
 
             {/* ── Create Modal ── */}
             {showCreate && (
@@ -619,22 +495,55 @@ export default function ClassesPage() {
                                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20 transition-all"
                             />
                         </div>
+                        <div className="flex gap-4">
+                            <div className="flex-1">
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                    Bab Awal <span className="text-red-400">*</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="50"
+                                    required
+                                    value={createForm.bab_start}
+                                    onChange={(e) =>
+                                        setCreateForm({ ...createForm, bab_start: e.target.value })
+                                    }
+                                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20 transition-all"
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                    Bab Akhir <span className="text-red-400">*</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="50"
+                                    required
+                                    value={createForm.bab_end}
+                                    onChange={(e) =>
+                                        setCreateForm({ ...createForm, bab_end: e.target.value })
+                                    }
+                                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20 transition-all"
+                                />
+                            </div>
+                        </div>
                         <div>
                             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                Level <span className="text-red-400">*</span>
+                                Guru Pengajar
                             </label>
                             <select
-                                required
-                                value={createForm.level}
+                                value={createForm.teacher_id}
                                 onChange={(e) =>
-                                    setCreateForm({ ...createForm, level: e.target.value })
+                                    setCreateForm({ ...createForm, teacher_id: e.target.value })
                                 }
                                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] bg-white"
                             >
-                                <option value="">Pilih level</option>
-                                {[1, 2, 3, 4, 5, 6].map((l) => (
-                                    <option key={l} value={l}>
-                                        Level {l}
+                                <option value="">Pilih guru (Bisa nanti)</option>
+                                {teachers.map((t) => (
+                                    <option key={t.id} value={t.id}>
+                                        {t.name}
                                     </option>
                                 ))}
                             </select>
@@ -658,77 +567,125 @@ export default function ClassesPage() {
                         </div>
                     </form>
                 </Modal>
-            )}
+            )
+            }
 
             {/* ── Edit / Rename Modal ── */}
-            {editClass && (
-                <Modal
-                    title={`Edit Nama Kelas`}
-                    onClose={() => setEditClass(null)}
-                >
-                    <form onSubmit={handleRename} className="space-y-4">
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                Nama Baru <span className="text-red-400">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                required
-                                autoFocus
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20"
-                            />
-                            <p className="text-xs text-gray-400 mt-1">
-                                Nama saat ini:{" "}
-                                <span className="font-medium text-gray-600">{editClass.name}</span>
-                            </p>
-                        </div>
-                        <div className="flex gap-3 pt-1">
+            {
+                editClass && (
+                    <Modal
+                        title={`Edit Kelas`}
+                        onClose={() => setEditClass(null)}
+                    >
+                        <form onSubmit={handleUpdate} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                    Nama Kelas <span className="text-red-400">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    autoFocus
+                                    value={editForm.name}
+                                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20"
+                                />
+                            </div>
+                            <div className="flex gap-4">
+                                <div className="flex-1">
+                                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                        Bab Awal <span className="text-red-400">*</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="50"
+                                        required
+                                        value={editForm.bab_start}
+                                        onChange={(e) => setEditForm({ ...editForm, bab_start: e.target.value })}
+                                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20 transition-all"
+                                    />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                        Bab Akhir <span className="text-red-400">*</span>
+                                    </label>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="50"
+                                        required
+                                        value={editForm.bab_end}
+                                        onChange={(e) => setEditForm({ ...editForm, bab_end: e.target.value })}
+                                        className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20 transition-all"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                    Guru Pengajar
+                                </label>
+                                <select
+                                    value={editForm.teacher_id}
+                                    onChange={(e) => setEditForm({ ...editForm, teacher_id: e.target.value })}
+                                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] bg-white"
+                                >
+                                    <option value="">Pilih guru (Bisa nanti)</option>
+                                    {teachers.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                            {t.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="flex gap-3 pt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setEditClass(null)}
+                                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={editLoading}
+                                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                                    style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}
+                                >
+                                    {editLoading ? "Menyimpan..." : "Simpan Perubahan"}
+                                </button>
+                            </div>
+                        </form>
+                    </Modal>
+                )
+            }
+
+            {/* ── Delete Confirm ── */}
+            {
+                deleteId && (
+                    <Modal title="Hapus Kelas?" onClose={() => setDeleteId(null)}>
+                        <p className="text-sm text-gray-600 mb-6">
+                            Kelas ini dan semua data terkait (mata pelajaran, pendaftaran siswa)
+                            akan dihapus permanen.
+                        </p>
+                        <div className="flex gap-3">
                             <button
-                                type="button"
-                                onClick={() => setEditClass(null)}
+                                onClick={() => setDeleteId(null)}
                                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50"
                             >
                                 Batal
                             </button>
                             <button
-                                type="submit"
-                                disabled={editLoading}
-                                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
-                                style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}
+                                onClick={handleDelete}
+                                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-500 hover:bg-red-600 flex items-center justify-center gap-2"
                             >
-                                {editLoading ? "Menyimpan..." : "Simpan Perubahan"}
+                                <Trash2 size={14} />
+                                Hapus
                             </button>
                         </div>
-                    </form>
-                </Modal>
-            )}
-
-            {/* ── Delete Confirm ── */}
-            {deleteId && (
-                <Modal title="Hapus Kelas?" onClose={() => setDeleteId(null)}>
-                    <p className="text-sm text-gray-600 mb-6">
-                        Kelas ini dan semua data terkait (mata pelajaran, pendaftaran siswa)
-                        akan dihapus permanen.
-                    </p>
-                    <div className="flex gap-3">
-                        <button
-                            onClick={() => setDeleteId(null)}
-                            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50"
-                        >
-                            Batal
-                        </button>
-                        <button
-                            onClick={handleDelete}
-                            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-500 hover:bg-red-600 flex items-center justify-center gap-2"
-                        >
-                            <Trash2 size={14} />
-                            Hapus
-                        </button>
-                    </div>
-                </Modal>
-            )}
-        </div>
+                    </Modal>
+                )
+            }
+        </div >
     );
 }

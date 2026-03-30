@@ -8,7 +8,10 @@ import {
     CheckCircle2,
     BookOpen,
     ArrowUpRight,
+    ClipboardList,
+    FileText,
 } from "lucide-react";
+import { parseRole, type Role, hasPermission } from "../../lib/roleHelper";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL
     ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1`
@@ -177,6 +180,7 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true);
     const [now, setNow] = useState("");
     const [userName, setUserName] = useState("Pengguna");
+    const [role, setRole] = useState<Role>("student");
 
     useEffect(() => {
         const d = new Date();
@@ -192,6 +196,7 @@ export default function DashboardPage() {
         try {
             const u = JSON.parse(localStorage.getItem("mori_user") ?? "{}");
             setUserName(u.Name || u.name || "Pengguna");
+            setRole(parseRole(localStorage.getItem("mori_role")));
         } catch { }
 
         fetch(`${API_BASE}/stats`)
@@ -279,11 +284,13 @@ export default function DashboardPage() {
     ];
 
     const quickActions = [
-        { label: "Manajemen Pengguna", labelJa: "ユーザー管理", color: "var(--accent)", bg: "var(--accent-soft)", emoji: "👥", href: "/dashboard/students" },
-        { label: "Tahun Ajaran", labelJa: "新年度", color: "var(--gold)", bg: "var(--gold-soft)", emoji: "📅", href: "/dashboard/academic" },
-        { label: "Kelola Kelas", labelJa: "クラス管理", color: "var(--role-student)", bg: "var(--role-student-bg)", emoji: "🏫", href: "/dashboard/classes" },
-        { label: "Mata Pelajaran", labelJa: "科目管理", color: "#6D5ACD", bg: "#EEEEFB", emoji: "📚", href: "/dashboard/courses" },
-    ];
+        { label: "Manajemen Pengguna", labelJa: "ユーザー管理", color: "var(--accent)", bg: "var(--accent-soft)", emoji: "👥", href: "/dashboard/users", feature: "users" as const },
+        { label: "Tahun Ajaran", labelJa: "新年度", color: "var(--gold)", bg: "var(--gold-soft)", emoji: "📅", href: "/dashboard/academic", feature: "academic_years" as const },
+        { label: "Kelola Kelas", labelJa: "クラス管理", color: "var(--role-student)", bg: "var(--role-student-bg)", emoji: "🏫", href: "/dashboard/classes", feature: "classes" as const },
+        { label: "Manajemen Tugas", labelJa: "課題管理", color: "#006D77", bg: "#e6f2f3", emoji: "📝", href: "/dashboard/teacher/assignments", feature: "teacher_assignments" as const },
+        { label: "Manajemen Ujian", labelJa: "試験管理", color: "#7B5EA7", bg: "#f1eff6", emoji: "⏱️", href: "/dashboard/teacher/exams", feature: "teacher_exams" as const },
+        { label: "Rekap Nilai", labelJa: "成績確認", color: "#B07D3A", bg: "#F5EDD9", emoji: "📊", href: "/dashboard/teacher/recap", feature: "reports" as const },
+    ].filter(action => hasPermission(role, action.feature));
 
     const firstWord = userName.split(" ")[0];
 

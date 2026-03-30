@@ -25,16 +25,18 @@ import {
 const API = "http://localhost:8080/api/v1";
 const FILE_HOST = "http://localhost:8080";
 
-interface Course {
+interface ClassModel {
     id: number;
     name: string;
-    class_id: number;
+    academic_year_id: number;
+    bab_start: number;
+    bab_end: number;
     teacher?: { name: string };
 }
 
 interface Assignment {
     id: number;
-    course_id: number;
+    class_id: number;
     title: string;
     description: string;
     file_url: string;
@@ -108,12 +110,12 @@ export default function TeacherAssignmentsPage() {
     const token = typeof window !== "undefined" ? localStorage.getItem("mori_token") ?? "" : "";
     const myID = getUserID();
 
-    // 1. Level 1: Course List
-    const [courses, setCourses] = useState<Course[]>([]);
-    const [loadingCourses, setLoadingCourses] = useState(true);
+    // 1. Level 1: Class List
+    const [classes, setClasses] = useState<ClassModel[]>([]);
+    const [loadingClasses, setLoadingClasses] = useState(true);
 
-    // 2. Level 2: Specific Course Assignments
-    const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+    // 2. Level 2: Specific Class Assignments
+    const [selectedClass, setSelectedClass] = useState<ClassModel | null>(null);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
     const [loadingAssign, setLoadingAssign] = useState(false);
 
@@ -136,23 +138,22 @@ export default function TeacherAssignmentsPage() {
 
     const [deleteId, setDeleteId] = useState<number | null>(null);
 
-    // Fetch only courses taught by me
+    // Fetch all classes
     useEffect(() => {
-        if (!myID) return;
-        setLoadingCourses(true);
-        fetch(`${API}/courses?teacher_id=${myID}`, {
+        setLoadingClasses(true);
+        fetch(`${API}/classes`, {
             headers: { Authorization: `Bearer ${token}` },
         })
             .then((r) => r.json())
-            .then((j) => setCourses(j.data ?? []))
+            .then((j) => setClasses(j.data ?? []))
             .catch(() => { })
-            .finally(() => setLoadingCourses(false));
-    }, [token, myID]);
+            .finally(() => setLoadingClasses(false));
+    }, [token]);
 
-    const fetchAssignments = useCallback(async (courseID: number) => {
+    const fetchAssignments = useCallback(async (classID: number) => {
         setLoadingAssign(true);
         try {
-            const res = await fetch(`${API}/assignments?course_id=${courseID}`, {
+            const res = await fetch(`${API}/assignments?class_id=${classID}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             const json = await res.json();
@@ -162,14 +163,14 @@ export default function TeacherAssignmentsPage() {
         }
     }, [token]);
 
-    const openCourse = (c: Course) => {
-        setSelectedCourse(c);
+    const openClass = (c: ClassModel) => {
+        setSelectedClass(c);
         setViewAssignment(null);
         fetchAssignments(c.id);
     };
 
-    const closeCourse = () => {
-        setSelectedCourse(null);
+    const closeClass = () => {
+        setSelectedClass(null);
         setViewAssignment(null);
     };
 
@@ -189,12 +190,12 @@ export default function TeacherAssignmentsPage() {
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedCourse) return;
+        if (!selectedClass) return;
         setCreateLoading(true);
         setCreateError("");
         try {
             const form = new FormData();
-            form.append("course_id", String(selectedCourse.id));
+            form.append("class_id", String(selectedClass.id));
             form.append("title", createForm.title);
             form.append("description", createForm.description);
             if (createForm.due_date) form.append("due_date", new Date(createForm.due_date).toISOString());
@@ -211,7 +212,7 @@ export default function TeacherAssignmentsPage() {
             setShowCreate(false);
             setCreateForm({ title: "", description: "", due_date: "" });
             setCreateFile(null);
-            fetchAssignments(selectedCourse.id);
+            fetchAssignments(selectedClass.id);
         } catch (err: unknown) {
             setCreateError(err instanceof Error ? err.message : "Error");
         } finally {
@@ -220,14 +221,14 @@ export default function TeacherAssignmentsPage() {
     };
 
     const handleDelete = async () => {
-        if (!deleteId || !selectedCourse) return;
+        if (!deleteId || !selectedClass) return;
         await fetch(`${API}/assignments/${deleteId}`, {
             method: "DELETE",
             headers: { Authorization: `Bearer ${token}` },
         });
         setDeleteId(null);
         if (viewAssignment?.id === deleteId) setViewAssignment(null);
-        fetchAssignments(selectedCourse.id);
+        fetchAssignments(selectedClass.id);
     };
 
     const handleGrade = async (e: React.FormEvent) => {
@@ -254,37 +255,37 @@ export default function TeacherAssignmentsPage() {
     };
 
 
-    // ── VIEW 1: COURSE LIST ──────────────────────────────────────────────────────────
-    if (!selectedCourse) {
+    // ── VIEW 1: CLASS LIST ──────────────────────────────────────────────────────────
+    if (!selectedClass) {
         return (
             <div className="max-w-5xl mx-auto space-y-6">
                 <div>
-                    <h1 className="text-2xl font-serif font-bold text-[#0D1B2A]">Mata Pelajaran Anda</h1>
+                    <h1 className="text-2xl font-serif font-bold text-[#0D1B2A]">Daftar Kelas</h1>
                     <p className="text-gray-400 text-sm mt-0.5">
-                        Pilih mata pelajaran yang Anda ampu untuk mengelola tugas.
+                        Pilih kelas untuk mengelola tugas.
                     </p>
                 </div>
 
-                {loadingCourses ? (
+                {loadingClasses ? (
                     <div className="flex justify-center py-20">
                         <div className="w-6 h-6 border-2 border-[#006D77] border-t-transparent rounded-full animate-spin" />
                     </div>
-                ) : courses.length === 0 ? (
+                ) : classes.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-100 shadow-sm gap-3">
                         <BookOpen size={40} className="text-gray-200" />
                         <div className="text-center">
-                            <p className="text-[#0D1B2A] font-semibold">Belum Ada Mata Pelajaran</p>
-                            <p className="text-sm text-gray-500 mt-1 max-w-sm">Anda belum ditugaskan untuk mengajar mata pelajaran apapun. Silakan hubungi admin.</p>
+                            <p className="text-[#0D1B2A] font-semibold">Belum Ada Kelas</p>
+                            <p className="text-sm text-gray-500 mt-1 max-w-sm">Belum ada kelas yang terdaftar pada tahun ajaran ini. Silakan hubungi admin.</p>
                         </div>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {courses.map((c, i) => {
+                        {classes.map((c, i) => {
                             const colors = ["from-[#006D77] to-[#4ECDC4]", "from-[#7B5EA7] to-[#b18fe0]", "from-[#E9A800] to-[#f7c948]", "from-[#E63946] to-[#f7887e]"];
                             const bg = colors[i % colors.length];
                             return (
                                 <div key={c.id}
-                                    onClick={() => openCourse(c)}
+                                    onClick={() => openClass(c)}
                                     className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-all group">
                                     <div className={`h-20 bg-gradient-to-r ${bg} p-4 flex items-end relative overflow-hidden`}>
                                         <h3 className="font-bold text-white text-lg relative z-10">{c.name}</h3>
@@ -441,16 +442,16 @@ export default function TeacherAssignmentsPage() {
         );
     }
 
-    // ── VIEW 3: ASSIGNMENT LIST FOR A COURSE ─────────────────────────────────────────
+    // ── VIEW 3: ASSIGNMENT LIST FOR A CLASS ─────────────────────────────────────────
     return (
         <div className="max-w-5xl mx-auto space-y-6">
             <div className="flex items-center justify-between gap-4">
                 <div>
-                    <button onClick={closeCourse} className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#006D77] transition-colors mb-2">
-                        <ArrowLeft size={16} /> Kembali ke daftar mata pelajaran
+                    <button onClick={closeClass} className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#006D77] transition-colors mb-2">
+                        <ArrowLeft size={16} /> Kembali ke daftar kelas
                     </button>
-                    <h1 className="text-2xl font-serif font-bold text-[#0D1B2A]">{selectedCourse.name}</h1>
-                    <p className="text-gray-400 text-sm mt-0.5">Kelola tugas untuk mata pelajaran ini.</p>
+                    <h1 className="text-2xl font-serif font-bold text-[#0D1B2A]">{selectedClass.name}</h1>
+                    <p className="text-gray-400 text-sm mt-0.5">Kelola tugas untuk kelas ini.</p>
                 </div>
                 <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg shadow-[#006D77]/20 hover:scale-105 transition-transform" style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}>
                     <Plus size={18} /> Buat Tugas Baru
@@ -463,7 +464,7 @@ export default function TeacherAssignmentsPage() {
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-20 flex flex-col items-center">
                     <ClipboardList size={48} className="text-gray-200 mb-4" />
                     <p className="font-semibold text-[#0D1B2A] text-lg">Belum Ada Tugas</p>
-                    <p className="text-sm text-gray-500 mt-1 mb-6">Mata pelajaran ini belum memiliki tugas.</p>
+                    <p className="text-sm text-gray-500 mt-1 mb-6">Kelas ini belum memiliki tugas.</p>
                     <button onClick={() => setShowCreate(true)} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-[#006D77] bg-[#006D77]/10 hover:bg-[#006D77]/20 transition-colors">
                         + Buat Tugas Pertama
                     </button>
@@ -505,7 +506,7 @@ export default function TeacherAssignmentsPage() {
 
             {/* CREATE MODAL */}
             {showCreate && (
-                <Modal title={`Tugas Baru di ${selectedCourse.name}`} onClose={() => setShowCreate(false)} wide>
+                <Modal title={`Tugas Baru di ${selectedClass.name}`} onClose={() => setShowCreate(false)} wide>
                     {createError && (
                         <div className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm mb-4"><AlertCircle size={16} />{createError}</div>
                     )}

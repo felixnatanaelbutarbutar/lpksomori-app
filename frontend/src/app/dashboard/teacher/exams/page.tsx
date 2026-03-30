@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
     FileText, Plus, Trash2, X, ChevronRight, BookOpen, Clock, AlertCircle,
     CheckSquare, AlignLeft, Paperclip, ChevronLeft, GraduationCap, Link2, Upload
@@ -8,15 +9,18 @@ import {
 
 const API = "http://localhost:8080/api/v1";
 
-interface Course {
+interface ClassModel {
     id: number;
     name: string;
+    academic_year_id: number;
+    bab_start: number;
+    bab_end: number;
     teacher?: { name: string };
 }
 
 interface Exam {
     id: number;
-    course_id: number;
+    class_id: number;
     title: string;
     description: string;
     start_time: string | null;
@@ -81,51 +85,36 @@ export default function TeacherExamsPage() {
     const token = typeof window !== "undefined" ? localStorage.getItem("mori_token") ?? "" : "";
     const myID = getUserID();
 
-    // Level 1: Course List
-    const [courses, setCourses] = useState<Course[]>([]);
-    const [loadingCourses, setLoadingCourses] = useState(true);
+    // Level 1: Class List
+    const [classes, setClasses] = useState<ClassModel[]>([]);
+    const [loadingClasses, setLoadingClasses] = useState(true);
 
-    // Level 2: Exam List for Course
-    const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+    // Level 2: Exam List for Class
+    const [selectedClass, setSelectedClass] = useState<ClassModel | null>(null);
     const [exams, setExams] = useState<Exam[]>([]);
     const [loadingExams, setLoadingExams] = useState(false);
 
-    // Level 3: Exam Detail & Questions
-    const [openExam, setOpenExam] = useState<ExamDetail | null>(null);
-    const [loadingDetail, setLoadingDetail] = useState(false);
-
     // Modals
     const [showCreateExam, setShowCreateExam] = useState(false);
-    const [examForm, setExamForm] = useState({ title: "", description: "", start_time: "", end_time: "" });
+    const [examForm, setExamForm] = useState({ title: "", description: "", start_time: "", end_time: "", max_attempts: 1 });
     const [examFormLoading, setExamFormLoading] = useState(false);
     const [examFormError, setExamFormError] = useState("");
 
     const [deleteExamId, setDeleteExamId] = useState<number | null>(null);
 
-    const [showAddQ, setShowAddQ] = useState(false);
-    const [qType, setQType] = useState<"multiple_choice" | "essay" | "file_upload">("multiple_choice");
-    const [qText, setQText] = useState("");
-    const [qPoints, setQPoints] = useState(1);
-    const [mcOptions, setMcOptions] = useState<McOption[]>([
-        { text: "", is_correct: true }, { text: "", is_correct: false }, { text: "", is_correct: false }, { text: "", is_correct: false },
-    ]);
-    const [addQLoading, setAddQLoading] = useState(false);
-    const [addQError, setAddQError] = useState("");
-
     useEffect(() => {
-        if (!myID) return;
-        setLoadingCourses(true);
-        fetch(`${API}/courses?teacher_id=${myID}`, { headers: { Authorization: `Bearer ${token}` } })
+        setLoadingClasses(true);
+        fetch(`${API}/classes`, { headers: { Authorization: `Bearer ${token}` } })
             .then((r) => r.json())
-            .then((j) => setCourses(j.data ?? []))
+            .then((j) => setClasses(j.data ?? []))
             .catch(() => { })
-            .finally(() => setLoadingCourses(false));
-    }, [token, myID]);
+            .finally(() => setLoadingClasses(false));
+    }, [token]);
 
-    const fetchExams = useCallback(async (courseID: number) => {
+    const fetchExams = useCallback(async (classID: number) => {
         setLoadingExams(true);
         try {
-            const res = await fetch(`${API}/exams?course_id=${courseID}`);
+            const res = await fetch(`${API}/exams?class_id=${classID}`);
             const json = await res.json();
             setExams(json.data ?? []);
         } finally {
@@ -133,40 +122,28 @@ export default function TeacherExamsPage() {
         }
     }, []);
 
-    const openCourse = (c: Course) => {
-        setSelectedCourse(c);
-        setOpenExam(null);
+    const router = useRouter();
+
+    const openClass = (c: ClassModel) => {
+        setSelectedClass(c);
         fetchExams(c.id);
     };
 
-    const closeCourse = () => {
-        setSelectedCourse(null);
-        setOpenExam(null);
+    const closeClass = () => {
+        setSelectedClass(null);
     };
 
-    const openExamDetail = async (exam: Exam) => {
-        setOpenExam({ ...exam, questions: [] });
-        setLoadingDetail(true);
-        try {
-            const res = await fetch(`${API}/exams/${exam.id}`);
-            const json = await res.json();
-            setOpenExam(json.data);
-        } finally {
-            setLoadingDetail(false);
-        }
-    };
-
-    const closeExamDetail = () => {
-        setOpenExam(null);
+    const openExamDetail = (exam: Exam) => {
+        router.push(`/dashboard/teacher/exams/${exam.id}`);
     };
 
     const handleCreateExam = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedCourse) return;
+        if (!selectedClass) return;
         setExamFormLoading(true);
         setExamFormError("");
         try {
-            const body: Record<string, unknown> = { course_id: selectedCourse.id, title: examForm.title, description: examForm.description };
+            const body: Record<string, unknown> = { class_id: selectedClass.id, title: examForm.title, description: examForm.description, max_attempts: examForm.max_attempts };
             if (examForm.start_time) body.start_time = new Date(examForm.start_time).toISOString();
             if (examForm.end_time) body.end_time = new Date(examForm.end_time).toISOString();
 
@@ -178,8 +155,8 @@ export default function TeacherExamsPage() {
             const json = await res.json();
             if (!res.ok) throw new Error(json.error ?? "Gagal membuat ujian");
             setShowCreateExam(false);
-            setExamForm({ title: "", description: "", start_time: "", end_time: "" });
-            fetchExams(selectedCourse.id);
+            setExamForm({ title: "", description: "", start_time: "", end_time: "", max_attempts: 1 });
+            fetchExams(selectedClass.id);
         } catch (err: unknown) {
             setExamFormError(err instanceof Error ? err.message : "Error");
         } finally {
@@ -188,70 +165,36 @@ export default function TeacherExamsPage() {
     };
 
     const handleDeleteExam = async () => {
-        if (!deleteExamId || !selectedCourse) return;
+        if (!deleteExamId || !selectedClass) return;
         await fetch(`${API}/exams/${deleteExamId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
         setDeleteExamId(null);
-        if (openExam?.id === deleteExamId) setOpenExam(null);
-        fetchExams(selectedCourse.id);
+        fetchExams(selectedClass.id);
     };
 
-    const handleAddQuestion = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!openExam) return;
-        setAddQLoading(true);
-        setAddQError("");
-        try {
-            const body: Record<string, unknown> = { question_type: qType, text: qText, points: qPoints };
-            if (qType === "multiple_choice") body.options = mcOptions.filter((o) => o.text.trim());
-
-            const res = await fetch(`${API}/exams/${openExam.id}/questions`, {
-                method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                body: JSON.stringify(body),
-            });
-            const json = await res.json();
-            if (!res.ok) throw new Error(json.error ?? "Gagal menambah soal");
-
-            setShowAddQ(false);
-            setQText(""); setQPoints(1); setQType("multiple_choice");
-            setMcOptions([{ text: "", is_correct: true }, { text: "", is_correct: false }, { text: "", is_correct: false }, { text: "", is_correct: false }]);
-            openExamDetail(openExam);
-        } catch (err: unknown) {
-            setAddQError(err instanceof Error ? err.message : "Error");
-        } finally {
-            setAddQLoading(false);
-        }
-    };
-
-    const handleDeleteQuestion = async (qID: number) => {
-        if (!openExam) return;
-        await fetch(`${API}/exams/questions/${qID}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-        openExamDetail(openExam);
-    };
-
-    // ── VIEW 1: COURSE LIST ────────────────────────────────────────────────────────
-    if (!selectedCourse) {
+    // ── VIEW 1: CLASS LIST ────────────────────────────────────────────────────────
+    if (!selectedClass) {
         return (
             <div className="max-w-5xl mx-auto space-y-6">
                 <div>
-                    <h1 className="text-2xl font-serif font-bold text-[#0D1B2A]">Mata Pelajaran Anda</h1>
-                    <p className="text-gray-400 text-sm mt-0.5">Pilih mata pelajaran yang Anda ampu untuk membuat ujian.</p>
+                    <h1 className="text-2xl font-serif font-bold text-[#0D1B2A]">Daftar Kelas</h1>
+                    <p className="text-gray-400 text-sm mt-0.5">Pilih kelas untuk membuat ujian.</p>
                 </div>
-                {loadingCourses ? (
+                {loadingClasses ? (
                     <div className="flex justify-center py-20"><div className="w-6 h-6 border-2 border-[#7B5EA7] border-t-transparent rounded-full animate-spin" /></div>
-                ) : courses.length === 0 ? (
+                ) : classes.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-100 shadow-sm gap-3">
                         <BookOpen size={40} className="text-gray-200" />
                         <div className="text-center">
-                            <p className="text-[#0D1B2A] font-semibold">Belum Ada Mata Pelajaran</p>
-                            <p className="text-sm text-gray-500 mt-1">Anda belum ditugaskan untuk mengajar.</p>
+                            <p className="text-[#0D1B2A] font-semibold">Belum Ada Kelas</p>
+                            <p className="text-sm text-gray-500 mt-1">Belum ada kelas yang terdaftar pada tahun ajaran ini. Silakan hubungi admin.</p>
                         </div>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {courses.map((c, i) => {
+                        {classes.map((c, i) => {
                             const bg = ["from-[#7B5EA7] to-[#b18fe0]", "from-[#2D6A4F] to-[#52b788]", "from-[#E9A800] to-[#f7c948]"][i % 3];
                             return (
-                                <div key={c.id} onClick={() => openCourse(c)}
+                                <div key={c.id} onClick={() => openClass(c)}
                                     className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-all group">
                                     <div className={`h-20 bg-gradient-to-r ${bg} p-4 flex items-end relative overflow-hidden`}>
                                         <h3 className="font-bold text-white text-lg relative z-10">{c.name}</h3>
@@ -271,204 +214,16 @@ export default function TeacherExamsPage() {
             </div>
         );
     }
-
-    // ── VIEW 3: EXAM DETAILS & MANAGE QUESTIONS ──────────────────────────────────────
-    if (openExam) {
-        const totalPoints = (openExam.questions ?? []).reduce((s, q) => s + q.points, 0);
-        return (
-            <div className="max-w-5xl mx-auto space-y-6">
-                <button onClick={closeExamDetail} className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#7B5EA7] transition-colors">
-                    <ChevronLeft size={16} /> Kembali ke daftar ujian {selectedCourse.name}
-                </button>
-
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div className="relative overflow-hidden bg-gradient-to-br from-[#1a0f2e] to-[#2d1b4e] p-6 lg:p-8">
-                        <div className="relative z-10 flex flex-col md:flex-row md:items-start justify-between gap-6">
-                            <div>
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-white/90 text-xs font-semibold uppercase tracking-wider mb-4">
-                                    <FileText size={14} /> SOAL UJIAN
-                                </span>
-                                <h1 className="text-2xl md:text-3xl font-serif font-bold text-white mb-2">{openExam.title}</h1>
-                                <p className="text-white/60 text-sm max-w-xl">{openExam.description || "Tanpa deskripsi."}</p>
-
-                                <div className="flex gap-4 mt-6">
-                                    <div className="flex flex-col">
-                                        <span className="text-white/40 text-xs font-semibold uppercase tracking-wider mb-1">Mulai</span>
-                                        <span className="text-white text-sm font-medium">{openExam.start_time ? formatDate(openExam.start_time) : "Bebas"}</span>
-                                    </div>
-                                    <div className="w-px bg-white/10" />
-                                    <div className="flex flex-col">
-                                        <span className="text-white/40 text-xs font-semibold uppercase tracking-wider mb-1">Selesai</span>
-                                        <span className="text-white text-sm font-medium">{openExam.end_time ? formatDate(openExam.end_time) : "Bebas"}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-4 shrink-0">
-                                <div className="bg-white/5 rounded-xl px-5 py-4 border border-white/10 text-center backdrop-blur-md">
-                                    <span className="block text-3xl font-bold text-white">{openExam.questions?.length ?? 0}</span>
-                                    <span className="text-xs text-white/50 uppercase font-semibold">Butir Soal</span>
-                                </div>
-                                <div className="bg-white/5 rounded-xl px-5 py-4 border border-white/10 text-center backdrop-blur-md">
-                                    <span className="block text-3xl font-bold text-white">{totalPoints}</span>
-                                    <span className="text-xs text-white/50 uppercase font-semibold">Poin Total</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Decorative Background */}
-                        <div className="absolute top-0 right-0 -mt-10 -mr-10 opacity-10">
-                            <FileText size={180} />
-                        </div>
-                    </div>
-
-                    <div className="p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-bold text-[#0D1B2A]">Soal-soal Ujian</h2>
-                            <button onClick={() => setShowAddQ(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white shadow-lg shadow-purple-500/20" style={{ background: "linear-gradient(135deg, #7B5EA7, #5a3d85)" }}>
-                                <Plus size={16} /> Tambah Soal
-                            </button>
-                        </div>
-
-                        {loadingDetail ? (
-                            <div className="flex justify-center py-20"><div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>
-                        ) : !openExam.questions || openExam.questions.length === 0 ? (
-                            <div className="text-center py-20 border-2 border-dashed border-gray-100 rounded-2xl bg-gray-50">
-                                <Plus size={32} className="text-gray-300 mx-auto mb-3" />
-                                <p className="text-[#0D1B2A] font-semibold">Ujian ini belum memiliki soal</p>
-                                <p className="text-gray-500 text-sm">Klik tombol "Tambah Soal" untuk memulai.</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {openExam.questions.map((q, i) => {
-                                    const typeMeta = TYPE_LABELS[q.question_type];
-                                    const opts: McOption[] = q.options ? (typeof q.options === "string" ? JSON.parse(q.options) : q.options) : [];
-                                    return (
-                                        <div key={q.id} className="p-5 rounded-2xl border border-gray-100 hover:border-purple-200 hover:shadow-sm transition-all relative group bg-white">
-                                            <div className="flex items-start gap-4">
-                                                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold shrink-0">
-                                                    {i + 1}
-                                                </div>
-                                                <div className="flex-1 min-w-0 pr-10">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${typeMeta.color}`}>
-                                                            {typeMeta.label}
-                                                        </span>
-                                                        <span className="text-xs font-semibold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">{q.points} Poin</span>
-                                                    </div>
-                                                    <p className="text-[#0D1B2A] font-medium leading-relaxed whitespace-pre-wrap">{q.text}</p>
-
-                                                    {q.question_type === "multiple_choice" && opts.length > 0 && (
-                                                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
-                                                            {opts.map((opt, oi) => (
-                                                                <div key={oi} className={`flex items-center gap-3 p-3 rounded-xl border text-sm ${opt.is_correct ? "bg-emerald-50 border-emerald-200 text-emerald-900 font-medium" : "bg-white border-gray-100 text-gray-700"}`}>
-                                                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${opt.is_correct ? "bg-emerald-500 text-white" : "border border-gray-300 text-gray-400"}`}>
-                                                                        {OPTION_LETTERS[oi]}
-                                                                    </div>
-                                                                    <span className="flex-1 truncate">{opt.text}</span>
-                                                                    {opt.is_correct && <CheckSquare size={14} className="text-emerald-500" />}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                    {q.question_type === "essay" && (
-                                                        <div className="mt-3 bg-gray-50 border border-gray-100 border-dashed rounded-xl p-4 text-center">
-                                                            <p className="text-xs tracking-wide uppercase font-semibold text-gray-400 flex justify-center items-center gap-2"><AlignLeft size={14} /> Area Jawaban Teks</p>
-                                                        </div>
-                                                    )}
-                                                    {q.question_type === "file_upload" && (
-                                                        <div className="mt-3 bg-gray-50 border border-gray-100 border-dashed rounded-xl p-4 text-center">
-                                                            <p className="text-xs tracking-wide uppercase font-semibold text-gray-400 flex justify-center items-center gap-2"><Upload size={14} /> Area Upload File Siswa</p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <button onClick={() => handleDeleteQuestion(q.id)} className="absolute top-5 right-5 w-8 h-8 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg hover:bg-red-50 hover:text-red-500 flex items-center justify-center text-gray-300">
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* ── Add Question Modal ── */}
-                {showAddQ && openExam && (
-                    <Modal title="Tambah Soal Ujian" onClose={() => { setShowAddQ(false); setAddQError(""); }} wide>
-                        {addQError && <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm mb-4">{addQError}</div>}
-                        <form onSubmit={handleAddQuestion} className="space-y-6">
-                            <div>
-                                <label className="block text-sm font-semibold text-[#0D1B2A] mb-2">Tipe Soal</label>
-                                <div className="grid grid-cols-3 gap-3">
-                                    {(["multiple_choice", "essay", "file_upload"] as const).map((t) => {
-                                        const m = TYPE_LABELS[t];
-                                        return (
-                                            <button key={t} type="button" onClick={() => setQType(t)}
-                                                className={`flex flex-col items-center gap-2 py-4 rounded-xl border text-sm font-semibold transition-all ${qType === t ? "border-purple-400 bg-purple-50 text-purple-700 shadow-sm" : "border-gray-200 text-gray-500 hover:border-purple-200"}`}>
-                                                {m.icon} {m.label}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="flex justify-between items-end mb-1.5">
-                                    <label className="block text-sm font-semibold text-[#0D1B2A]">Pertanyaan</label>
-                                    <label className="block text-sm font-semibold text-[#0D1B2A] flex items-center gap-2">Poin Nilai:
-                                        <input type="number" min={1} max={100} value={qPoints} onChange={(e) => setQPoints(parseInt(e.target.value) || 1)} className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-center" />
-                                    </label>
-                                </div>
-                                <textarea required rows={4} placeholder="Tulis teks pertanyaan di sini..." value={qText} onChange={(e) => setQText(e.target.value)}
-                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-purple-500 resize-y" />
-                            </div>
-
-                            {qType === "multiple_choice" && (
-                                <div className="space-y-3">
-                                    <label className="block text-sm font-semibold text-[#0D1B2A]">Opsi Pilihan Ganda (Tandai yang benar)</label>
-                                    {mcOptions.map((opt, i) => (
-                                        <div key={i} className="flex items-center gap-3">
-                                            <button type="button" onClick={() => setMcOptions(prev => prev.map((o, idx) => ({ ...o, is_correct: idx === i })))}
-                                                className={`w-8 h-8 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${opt.is_correct ? "border-emerald-500 bg-emerald-500 text-white" : "border-gray-300 text-transparent"}`}>
-                                                <CheckSquare size={14} className={opt.is_correct ? "text-white" : "text-transparent"} />
-                                            </button>
-                                            <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex justify-center items-center font-bold text-gray-500">{OPTION_LETTERS[i]}</div>
-                                            <input type="text" placeholder={`Teks opsi ${OPTION_LETTERS[i]}...`} value={opt.text} onChange={(e) => setMcOptions(prev => prev.map((o, idx) => (idx === i ? { ...o, text: e.target.value } : o)))}
-                                                className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-purple-500" />
-                                            {mcOptions.length > 2 && (
-                                                <button type="button" onClick={() => setMcOptions(prev => prev.filter((_, idx) => idx !== i))} className="w-8 h-8 flex justify-center items-center hover:bg-red-50 hover:text-red-500 rounded-lg text-gray-300"><Trash2 size={16} /></button>
-                                            )}
-                                        </div>
-                                    ))}
-                                    {mcOptions.length < 5 && (
-                                        <button type="button" onClick={() => setMcOptions(prev => [...prev, { text: "", is_correct: false }])} className="text-sm font-semibold text-purple-600 pl-[4.5rem] mt-2">+ Tambah Opsi</button>
-                                    )}
-                                </div>
-                            )}
-
-                            <div className="flex gap-3 pt-6 border-t border-gray-100">
-                                <button type="button" onClick={() => setShowAddQ(false)} className="px-6 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">Batal</button>
-                                <button type="submit" disabled={addQLoading} className="flex-1 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg, #7B5EA7, #5a3d85)" }}>{addQLoading ? "Menyimpan..." : "Simpan Soal"}</button>
-                            </div>
-                        </form>
-                    </Modal>
-                )}
-            </div>
-        );
-    }
-
-    // ── VIEW 2: EXAM LIST FOR COURSE ────────────────────────────────────────────────
+    // ── VIEW 2: EXAM LIST FOR CLASS ────────────────────────────────────────────────
     return (
         <div className="max-w-5xl mx-auto space-y-6">
             <div className="flex items-center justify-between gap-4">
                 <div>
-                    <button onClick={closeCourse} className="flex items-center gap-2 text-sm text-gray-500 hover:text-purple-700 transition-colors mb-2">
-                        <ChevronLeft size={16} /> Kembali ke daftar mata pelajaran
+                    <button onClick={closeClass} className="flex items-center gap-2 text-sm text-gray-500 hover:text-purple-700 transition-colors mb-2">
+                        <ChevronLeft size={16} /> Kembali ke daftar kelas
                     </button>
-                    <h1 className="text-2xl font-serif font-bold text-[#0D1B2A]">{selectedCourse.name}</h1>
-                    <p className="text-gray-400 text-sm mt-0.5">Kelola ujian untuk mata pelajaran ini.</p>
+                    <h1 className="text-2xl font-serif font-bold text-[#0D1B2A]">{selectedClass.name}</h1>
+                    <p className="text-gray-400 text-sm mt-0.5">Kelola ujian untuk kelas ini.</p>
                 </div>
                 <button onClick={() => setShowCreateExam(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg shadow-purple-500/20 hover:scale-105 transition-transform" style={{ background: "linear-gradient(135deg, #7B5EA7, #5a3d85)" }}>
                     <Plus size={18} /> Buat Ujian Baru
@@ -481,7 +236,7 @@ export default function TeacherExamsPage() {
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-20 flex flex-col items-center">
                     <FileText size={48} className="text-gray-200 mb-4" />
                     <p className="font-semibold text-[#0D1B2A] text-lg">Belum Ada Ujian</p>
-                    <p className="text-sm text-gray-500 mt-1 mb-6">Mata pelajaran ini belum memiliki ujian atau kuis.</p>
+                    <p className="text-sm text-gray-500 mt-1 mb-6">Kelas ini belum memiliki ujian atau kuis.</p>
                     <button onClick={() => setShowCreateExam(true)} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors">
                         + Buat Ujian Pertama
                     </button>
@@ -517,7 +272,7 @@ export default function TeacherExamsPage() {
 
             {/* CREATE EXAM MODAL */}
             {showCreateExam && (
-                <Modal title={`Buat Ujian Baru di ${selectedCourse.name}`} onClose={() => setShowCreateExam(false)} wide>
+                <Modal title={`Buat Ujian Baru di ${selectedClass.name}`} onClose={() => setShowCreateExam(false)} wide>
                     {examFormError && (<div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm mb-4"><AlertCircle size={16} className="inline mr-2" />{examFormError}</div>)}
                     <form onSubmit={handleCreateExam} className="space-y-4">
                         <div>
@@ -528,7 +283,11 @@ export default function TeacherExamsPage() {
                             <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">Deskripsi / Peraturan</label>
                             <textarea rows={3} value={examForm.description} onChange={e => setExamForm({ ...examForm, description: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500 resize-none" placeholder="Tulis instruksi pengerjaan jika ada..." />
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">Maksimal Akses (Attempt) *</label>
+                                <input type="number" min={1} required value={examForm.max_attempts} onChange={e => setExamForm({ ...examForm, max_attempts: parseInt(e.target.value) || 1 })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500" />
+                            </div>
                             <div>
                                 <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">Waktu Mulai (Opsional)</label>
                                 <input type="datetime-local" value={examForm.start_time} onChange={e => setExamForm({ ...examForm, start_time: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500 bg-white" />

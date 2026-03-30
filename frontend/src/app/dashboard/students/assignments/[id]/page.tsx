@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Link2, Clock, CheckCircle2, ChevronLeft, Upload, Paperclip, AlertCircle } from "lucide-react";
+import Swal from "sweetalert2";
 
 const API = "http://localhost:8080/api/v1";
 const FILE_HOST = "http://localhost:8080";
@@ -62,6 +63,10 @@ export default function StudentAssignmentPage() {
         setError("");
 
         try {
+            if (!file && !note.trim()) {
+                throw new Error("Mohon isi jawaban teks atau upload lampiran file.");
+            }
+
             const form = new FormData();
             if (file) form.append("file", file);
             form.append("note", note);
@@ -75,7 +80,13 @@ export default function StudentAssignmentPage() {
             if (!res.ok) throw new Error(json.error || "Gagal mengumpulkan tugas");
 
             setSubmission(json.data);
-            alert("Berhasil mengumpulkan tugas!");
+            await Swal.fire({
+                title: "Tugas Berhasil Dikumpulkan! ✅",
+                text: "Tugasmu sudah berhasil dikirim. Tunggu penilaian dari guru ya!",
+                icon: "success",
+                confirmButtonColor: "#006D77",
+                confirmButtonText: "Kembali ke Kelas"
+            });
             window.location.reload();
         } catch (err: any) {
             setError(err.message);
@@ -163,10 +174,10 @@ export default function StudentAssignmentPage() {
                                 {submission && <div className="inline-flex items-center gap-2 bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-sm font-semibold mb-2"><CheckCircle2 size={16} /> Anda sudah mengumpulkan. Submit ulang akan menimpa jawaban lama.</div>}
 
                                 <div>
-                                    <label className="block text-sm font-semibold text-[#0D1B2A] mb-2">Upload File Jawaban {submission?.file_url && "(Kosongkan jika tidak ingin mengubah file lama)"}</label>
+                                    <label className="block text-sm font-semibold text-[#0D1B2A] mb-2">Upload Lampiran Jawaban / Latihan {submission?.file_url && "(Kosongkan jika tidak ingin mengubah file lama)"}</label>
                                     <label className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-200 rounded-2xl cursor-pointer hover:border-[#006D77] transition-all bg-gray-50 hover:bg-white group">
                                         <Upload size={32} className="text-gray-400 group-hover:text-[#006D77] mb-3 transition-colors" />
-                                        <span className="text-sm font-medium text-gray-700">{file ? file.name : "Klik atau seret file ke sini"}</span>
+                                        <span className="text-sm font-medium text-gray-700">{file ? file.name : "Klik atau seret file ke sini (Jika tugas berupa file)"}</span>
                                         {submission?.file_url && !file && (
                                             <span className="text-xs text-[#006D77] mt-2 underline">Anda sebelumnya sudah mengupload file.</span>
                                         )}
@@ -174,10 +185,10 @@ export default function StudentAssignmentPage() {
                                     </label>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-semibold text-[#0D1B2A] mb-2">Catatan Tambahan (Opsional)</label>
-                                    <textarea rows={4} value={note} onChange={e => setNote(e.target.value)} placeholder="Tulis catatan untuk guru..." className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#006D77] text-sm resize-none"></textarea>
+                                    <label className="block text-sm font-semibold text-[#0D1B2A] mb-2">Jawaban Teks / Essay / Catatan</label>
+                                    <textarea rows={4} value={note} onChange={e => setNote(e.target.value)} placeholder="Tulis jawaban essay, atau catatan untuk guru di sini..." className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#006D77] text-sm resize-none"></textarea>
                                 </div>
-                                <button type="submit" disabled={submitting} className="w-full py-4 rounded-xl font-bold text-white transition-opacity disabled:opacity-50" style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}>
+                                <button type="submit" disabled={submitting || (!file && !note.trim() && !submission)} className="w-full py-4 rounded-xl font-bold text-white transition-opacity disabled:opacity-50" style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}>
                                     {submitting ? "Mengirim..." : (submission ? "Resubmit Perubahan" : "Kumpulkan Tugas")}
                                 </button>
                             </form>

@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -35,7 +36,10 @@ type Class struct {
 	AcademicYearID int          `gorm:"not null"                  json:"academic_year_id"`
 	AcademicYear   AcademicYear `gorm:"foreignKey:AcademicYearID" json:"academic_year,omitempty"`
 	Name           string       `gorm:"not null"                  json:"name"`
-	Level          int          `gorm:"not null"                  json:"level"` // 1-5
+	BabStart       int          `gorm:"not null"                  json:"bab_start"` // e.g., 1
+	BabEnd         int          `gorm:"not null"                  json:"bab_end"`   // e.g., 5
+	TeacherID      *int         `                                 json:"teacher_id"` // nullable
+	Teacher        *User        `gorm:"foreignKey:TeacherID"      json:"teacher,omitempty"`   
 	CreatedAt      time.Time    `                                 json:"created_at"`
 	UpdatedAt      time.Time    `                                 json:"updated_at"`
 	Enrollments    []ClassEnrollment `gorm:"foreignKey:ClassID"    json:"enrollments,omitempty"`
@@ -52,24 +56,12 @@ type ClassEnrollment struct {
 	EnrolledAt time.Time `gorm:"autoCreateTime"            json:"enrolled_at"`
 }
 
-// ─── Course ───────────────────────────────────────────────────────────────────
-type Course struct {
-	ID        int       `gorm:"primaryKey;autoIncrement" json:"id"`
-	ClassID   int       `gorm:"not null"                 json:"class_id"`
-	Class     Class     `gorm:"foreignKey:ClassID"       json:"class,omitempty"`
-	TeacherID *int      `                                json:"teacher_id"` // nullable
-	Teacher   *User     `gorm:"foreignKey:TeacherID"     json:"teacher,omitempty"`
-	Name      string    `gorm:"not null"                 json:"name"`
-	CreatedAt time.Time `                                json:"created_at"`
-	UpdatedAt time.Time `                                json:"updated_at"`
-}
-
-// ─── Course Activity ──────────────────────────────────────────────────────────
+// ─── Class Activity ──────────────────────────────────────────────────────────
 // Types: quiz | exam | assignment
-type CourseActivity struct {
+type ClassActivity struct {
 	ID        int        `gorm:"primaryKey;autoIncrement" json:"id"`
-	CourseID  int        `gorm:"not null"                 json:"course_id"`
-	Course    Course     `gorm:"foreignKey:CourseID"      json:"course,omitempty"`
+	ClassID   int        `gorm:"not null"                 json:"class_id"`
+	Class     Class      `gorm:"foreignKey:ClassID"       json:"class,omitempty"`
 	Type      string     `gorm:"not null"                 json:"type"`
 	Title     string     `gorm:"not null"                 json:"title"`
 	DueDate   *time.Time `                                json:"due_date"`
@@ -82,7 +74,7 @@ type CourseActivity struct {
 type Question struct {
 	ID             int              `gorm:"primaryKey;autoIncrement" json:"id"`
 	ActivityID     int              `gorm:"not null"                 json:"activity_id"`
-	Activity       CourseActivity   `gorm:"foreignKey:ActivityID"    json:"activity,omitempty"`
+	Activity       ClassActivity    `gorm:"foreignKey:ActivityID"    json:"activity,omitempty"`
 	Type           string           `gorm:"not null"                 json:"type"`
 	QuestionText   string           `gorm:"not null"                 json:"question_text"`
 	ImageURL       string           `                                json:"image_url"`
@@ -119,18 +111,20 @@ type StudentAnswer struct {
 }
 
 // ─── Assignment (Tugas) ───────────────────────────────────────────────────────
-// Created by teacher, attached to a course. Students submit via Submission.
+// Created by teacher, attached to a class. Students submit via Submission.
 type Assignment struct {
-	ID          int         `gorm:"primaryKey;autoIncrement" json:"id"`
-	CourseID    int         `gorm:"not null"                 json:"course_id"`
-	Course      Course      `gorm:"foreignKey:CourseID"      json:"course,omitempty"`
-	Title       string      `gorm:"not null"                 json:"title"`
-	Description string      `gorm:"type:text"                json:"description"`
-	FileURL     string      `                                json:"file_url"`     // teacher attachment
-	DueDate     *time.Time  `                                json:"due_date"`
-	CreatedAt   time.Time   `                                json:"created_at"`
-	UpdatedAt   time.Time   `                                json:"updated_at"`
-	Submissions []Submission `gorm:"foreignKey:AssignmentID" json:"submissions,omitempty"`
+	ID           int          `gorm:"primaryKey;autoIncrement" json:"id"`
+	ClassID      int          `gorm:"not null"                 json:"class_id"`
+	Class        Class        `gorm:"foreignKey:ClassID"       json:"class,omitempty"`
+	Title        string       `gorm:"not null"                 json:"title"`
+	Description  string       `gorm:"type:text"                json:"description"`
+	FileURL      string       `                                json:"file_url"`
+	DueDate      *time.Time   `                                json:"due_date"`
+	CreatedByID  *int         `                                json:"created_by_id"`
+	CreatedBy    *User        `gorm:"foreignKey:CreatedByID"   json:"created_by,omitempty"`
+	CreatedAt    time.Time    `                                json:"created_at"`
+	UpdatedAt    time.Time    `                                json:"updated_at"`
+	Submissions  []Submission `gorm:"foreignKey:AssignmentID" json:"submissions,omitempty"`
 }
 
 // ─── Submission ───────────────────────────────────────────────────────────────
@@ -150,18 +144,21 @@ type Submission struct {
 }
 
 // ─── Exam ─────────────────────────────────────────────────────────────────────
-// An exam created by a teacher for a course.
+// An exam created by a teacher for a class.
 type Exam struct {
-	ID          int            `gorm:"primaryKey;autoIncrement" json:"id"`
-	CourseID    int            `gorm:"not null"                 json:"course_id"`
-	Course      Course         `gorm:"foreignKey:CourseID"      json:"course,omitempty"`
-	Title       string         `gorm:"not null"                 json:"title"`
-	Description string         `gorm:"type:text"                json:"description"`
-	StartTime   *time.Time     `                                json:"start_time"`
-	EndTime     *time.Time     `                                json:"end_time"`
-	CreatedAt   time.Time      `                                json:"created_at"`
-	UpdatedAt   time.Time      `                                json:"updated_at"`
-	Questions   []ExamQuestion `gorm:"foreignKey:ExamID"        json:"questions,omitempty"`
+	ID           int            `gorm:"primaryKey;autoIncrement" json:"id"`
+	ClassID      int            `gorm:"not null"                 json:"class_id"`
+	Class        Class          `gorm:"foreignKey:ClassID"       json:"class,omitempty"`
+	Title        string         `gorm:"not null"                 json:"title"`
+	Description  string         `gorm:"type:text"                json:"description"`
+	StartTime    *time.Time     `                                json:"start_time"`
+	EndTime      *time.Time     `                                json:"end_time"`
+	MaxAttempts  int            `gorm:"default:1"               json:"max_attempts"`
+	CreatedByID  *int           `                                json:"created_by_id"`
+	CreatedBy    *User          `gorm:"foreignKey:CreatedByID"   json:"created_by,omitempty"`
+	CreatedAt    time.Time      `                                json:"created_at"`
+	UpdatedAt    time.Time      `                                json:"updated_at"`
+	Questions    []ExamQuestion `gorm:"foreignKey:ExamID"        json:"questions,omitempty"`
 }
 
 // ─── Exam Question ────────────────────────────────────────────────────────────
@@ -177,7 +174,7 @@ type ExamQuestion struct {
 	QuestionType string       `gorm:"not null"                 json:"question_type"` // multiple_choice | essay | file_upload
 	Text      string          `gorm:"type:text;not null"       json:"text"`
 	Points    int             `gorm:"default:1"               json:"points"`
-	Options   []byte          `gorm:"type:jsonb"               json:"options"` // raw JSON
+	Options   json.RawMessage `gorm:"type:jsonb"               json:"options"` // raw JSON
 	CreatedAt time.Time       `                                json:"created_at"`
 	Answers   []ExamAnswer    `gorm:"foreignKey:QuestionID"    json:"answers,omitempty"`
 }
@@ -196,6 +193,16 @@ type ExamAnswer struct {
 	FileURL    string       `                                                          json:"file_url"`
 	Score      *float64     `                                                          json:"score"`
 	AnsweredAt time.Time    `gorm:"autoCreateTime"                                     json:"answered_at"`
+}
+
+// ─── Exam Submission ──────────────────────────────────────────────────────────
+// Tracks a student's completed attempt for an exam.
+type ExamSubmission struct {
+	ID        int       `gorm:"primaryKey;autoIncrement" json:"id"`
+	ExamID    int       `gorm:"not null;uniqueIndex:idx_es" json:"exam_id"`
+	StudentID int       `gorm:"not null;uniqueIndex:idx_es" json:"student_id"`
+	Attempt   int       `gorm:"not null;uniqueIndex:idx_es" json:"attempt"`
+	CreatedAt time.Time `gorm:"autoCreateTime"              json:"created_at"`
 }
 
 // ─── Notification ─────────────────────────────────────────────────────────────
@@ -228,4 +235,22 @@ type Announcement struct {
 	IsActive      bool      `gorm:"default:true"             json:"is_active"`
 	CreatedAt     time.Time `                                json:"created_at"`
 	UpdatedAt     time.Time `                                json:"updated_at"`
+}
+
+// ─── Grade Recap ──────────────────────────────────────────────────────────────
+// A student's academic record for a specific class module.
+// Stores summarized performance and determining progression (naik kelas).
+type GradeRecap struct {
+	ID              int       `gorm:"primaryKey;autoIncrement" json:"id"`
+	StudentID       int       `gorm:"not null;uniqueIndex:idx_student_class" json:"student_id"`
+	Student         User      `gorm:"foreignKey:StudentID"                   json:"student,omitempty"`
+	ClassID         int       `gorm:"not null;uniqueIndex:idx_student_class" json:"class_id"`
+	Class           Class     `gorm:"foreignKey:ClassID"                     json:"class,omitempty"`
+	AssignmentAvg   float64   `gorm:"default:0"                              json:"assignment_avg"`
+	ExamScore       float64   `gorm:"default:0"                              json:"exam_score"`
+	FinalScore      float64   `gorm:"default:0"                              json:"final_score"`
+	Status          string    `gorm:"default:'In Progress'"                  json:"status"` // "Passed" | "Failed" | "In Progress"
+	Notes           string    `gorm:"type:text"                              json:"notes"`
+	TeacherID       int       `gorm:"not null"                               json:"teacher_id"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }

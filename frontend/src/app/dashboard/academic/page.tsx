@@ -24,7 +24,9 @@ interface AcademicYear {
 interface Class {
     id: number;
     name: string;
-    level: number;
+    bab_start: number;
+    bab_end: number;
+    teacher_id: number | null;
     academic_year_id: number;
 }
 
@@ -365,7 +367,7 @@ export default function AcademicPage() {
                         </div>
 
                         <p className="text-xs text-gray-400 bg-blue-50 rounded-lg px-3 py-2 border border-blue-100">
-                            ✨ Sistem akan otomatis membuat <strong>Kelas 1–5</strong> untuk tahun ajaran ini
+                            ✨ Sistem akan otomatis membuat <strong>Kelas 1–8</strong> untuk tahun ajaran ini
                         </p>
 
                         <div className="flex gap-3 pt-1">

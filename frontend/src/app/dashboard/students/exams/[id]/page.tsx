@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Clock, CheckSquare, AlignLeft, Paperclip, Upload, ChevronLeft, Send, CheckCircle2 } from "lucide-react";
+import Swal from "sweetalert2";
 
 const API = "http://localhost:8080/api/v1";
 
@@ -38,6 +39,7 @@ export default function StudentExamPage() {
     const [answers, setAnswers] = useState<AnswersState>({});
     const [submitting, setSubmitting] = useState(false);
     const [isDone, setIsDone] = useState(false);
+    const [scoreData, setScoreData] = useState<{total_score: number, max_score: number, score_100: number} | null>(null);
 
     useEffect(() => {
         if (!token || !id) return;
@@ -56,7 +58,17 @@ export default function StudentExamPage() {
     };
 
     const handleSubmit = async () => {
-        if (!confirm("Yakin ingin mengumpulkan seluruh jawaban? Pastikan semuanya sudah terisi.")) return;
+        const res = await Swal.fire({
+            title: "Kumpulkan Ujian?",
+            html: "<p>Pastikan semua soal sudah dijawab.<br/>Setelah dikumpulkan, <b>jawaban tidak bisa diubah lagi</b>.</p>",
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonColor: "#006D77",
+            cancelButtonColor: "#6b7280",
+            confirmButtonText: "Ya, Kumpulkan! 🚀",
+            cancelButtonText: "Cek Dulu"
+        });
+        if (!res.isConfirmed) return;
         setSubmitting(true);
         try {
             for (const q of (exam?.questions || [])) {
@@ -73,13 +85,50 @@ export default function StudentExamPage() {
                     body: form
                 });
             }
+
+            // After all answers submitted, finalize the attempt
+            const res = await fetch(`${API}/exams/${id}/submit`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const json = await res.json();
+                setScoreData(json);
+            }
+
             setIsDone(true);
         } catch (err) {
-            alert("Terjadi kesalahan saat mengumpulkan!");
+            Swal.fire({
+                title: "Terjadi Kesalahan!",
+                text: "Gagal mengumpulkan jawaban. Pastikan koneksimu stabil dan coba lagi.",
+                icon: "error",
+                confirmButtonColor: "#006D77"
+            });
         } finally {
             setSubmitting(false);
         }
     };
+
+    const [timeLeft, setTimeLeft] = useState<string>("");
+
+    useEffect(() => {
+        if (!exam?.end_time) return;
+        const iv = setInterval(() => {
+            const end = new Date(exam.end_time!).getTime();
+            const now = Date.now();
+            const diff = end - now;
+            if (diff <= 0) {
+                setTimeLeft("Waktu Habis!");
+                clearInterval(iv);
+            } else {
+                const h = Math.floor(diff / (1000 * 60 * 60));
+                const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const s = Math.floor((diff % (1000 * 60)) / 1000);
+                setTimeLeft(`${h}j ${m}m ${s}s`);
+            }
+        }, 1000);
+        return () => clearInterval(iv);
+    }, [exam]);
 
     if (loading) return <div className="p-10 flex justify-center"><div className="animate-spin w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full" /></div>;
     if (!exam) return <div className="p-10 text-center">Ujian tidak ditemukan.</div>;
@@ -89,7 +138,15 @@ export default function StudentExamPage() {
             <div className="max-w-2xl mx-auto py-20 text-center space-y-4">
                 <CheckCircle2 size={80} className="text-emerald-500 mx-auto" />
                 <h1 className="text-3xl font-bold text-[#0D1B2A]">Selesai!</h1>
-                <p className="text-gray-500">Jawaban Anda berhasil dikirim. Silakan tunggu penilaian dari guru.</p>
+                <p className="text-gray-500">Jawaban Anda berhasil dikirim.</p>
+                {scoreData && (
+                    <div className="bg-white border-2 border-emerald-100 shadow-md rounded-2xl p-6 mt-6 inline-block text-center space-y-2">
+                        <p className="text-sm font-bold uppercase tracking-widest text-emerald-600">Nilai Pilihan Ganda Anda</p>
+                        <h2 className="text-5xl font-black text-[#0D1B2A]">{scoreData.score_100.toFixed(0)}</h2>
+                        <p className="text-sm text-gray-400 font-medium">({scoreData.total_score} benar dari total {scoreData.max_score} poin opsional)</p>
+                        <p className="text-xs text-amber-500 mt-2 italic">*Nilai essay/upload akan menyusul setelah dinilai guru</p>
+                    </div>
+                )}
                 <div className="pt-6">
                     <button onClick={() => router.push("/dashboard/students/dashboard")} className="px-6 py-3 rounded-xl bg-[#0D1B2A] text-white font-semibold hover:bg-[#1a2a3a]">
                         Kembali ke Dashboard
@@ -114,7 +171,12 @@ export default function StudentExamPage() {
                     {(exam.start_time || exam.end_time) && (
                         <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 shrink-0 text-white flex flex-col gap-2 min-w-[200px]">
                             {exam.start_time && <div className="flex items-center gap-2 text-xs"><Clock size={14} className="text-purple-300" /> Mulai: {new Date(exam.start_time).toLocaleString("id-ID")}</div>}
-                            {exam.end_time && <div className="flex items-center gap-2 text-xs text-red-300"><Clock size={14} /> Selesai: {new Date(exam.end_time).toLocaleString("id-ID")}</div>}
+                            {exam.end_time && (
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex items-center gap-2 text-xs text-red-300"><Clock size={14} /> Selesai: {new Date(exam.end_time).toLocaleString("id-ID")}</div>
+                                    {timeLeft && <div className="text-xl font-mono font-bold text-red-400 mt-1">{timeLeft} tersisa</div>}
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -123,7 +185,13 @@ export default function StudentExamPage() {
 
             <div className="space-y-6">
                 {(exam.questions || []).map((q, i) => {
-                    const opts: McOption[] = typeof q.options === "string" ? JSON.parse(q.options) : (q.options || []);
+                    const opts: McOption[] = (() => {
+                        if (!q.options) return [];
+                        if (typeof q.options === "string") {
+                            try { return JSON.parse(q.options); } catch { return []; }
+                        }
+                        return q.options as McOption[];
+                    })();
                     return (
                         <div key={q.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 lg:p-8 relative">
                             <div className="absolute top-0 left-0 w-1.5 h-full bg-purple-100 rounded-l-2xl" />

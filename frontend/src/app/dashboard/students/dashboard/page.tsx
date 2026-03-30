@@ -184,10 +184,10 @@ export default function StudentDashboardPage() {
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-serif font-bold text-[#0D1B2A]">Kelas Saya</h2>
                     <Link
-                        href="/dashboard/courses"
+                        href="/dashboard/students/my-class"
                         className="text-xs text-[#006D77] hover:underline flex items-center gap-1"
                     >
-                        Lihat mata pelajaran <ChevronRight size={12} />
+                        Detail kelas <ChevronRight size={12} />
                     </Link>
                 </div>
 
@@ -219,17 +219,17 @@ export default function StudentDashboardPage() {
                                         <span className="text-xs font-semibold text-gray-700">{cls.academic_year || "—"}</span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span className="text-xs text-gray-400">Mata Pelajaran</span>
+                                        <span className="text-xs text-gray-400">Status</span>
                                         <div className="flex items-center gap-1">
-                                            <BookOpen size={12} className="text-[#006D77]" />
-                                            <span className="text-xs font-semibold text-[#006D77]">{cls.course_count} mapel</span>
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                            <span className="text-xs font-semibold text-emerald-600">Terdaftar Aktif</span>
                                         </div>
                                     </div>
                                     <Link
-                                        href="/dashboard/courses"
+                                        href="/dashboard/students/my-class"
                                         className="flex items-center justify-center gap-1.5 w-full text-xs font-semibold text-[#006D77] py-2 rounded-xl bg-[#006D77]/6 hover:bg-[#006D77]/12 transition-colors"
                                     >
-                                        Lihat Mata Pelajaran <ChevronRight size={12} />
+                                        Buka Detail Kelas <ChevronRight size={12} />
                                     </Link>
                                 </div>
                             </div>
@@ -275,7 +275,13 @@ export default function StudentDashboardPage() {
                                 <Link
                                     href={linkHref}
                                     key={`${task.type}-${task.id}-${idx}`}
-                                    className={`bg-white rounded-2xl border p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer block ${task.is_submitted ? "border-emerald-100" : "border-gray-100 hover:border-[#006D77]/50"
+                                    onClick={(e) => {
+                                        if (task.is_submitted) {
+                                            e.preventDefault();
+                                            alert("Anda sudah mengerjakan ujian/tugas ini!");
+                                        }
+                                    }}
+                                    className={`bg-white rounded-2xl border p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer block ${task.is_submitted ? "border-emerald-100 opacity-60" : "border-gray-100 hover:border-[#006D77]/50"
                                         }`}
                                 >
                                     <div className="flex items-start gap-3">

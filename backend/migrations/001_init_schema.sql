@@ -22,25 +22,18 @@ CREATE TABLE academic_years (
 CREATE TABLE classes (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     academic_year_id INT NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL, -- "Class 1", "Class 2", etc.
-    level INT NOT NULL CHECK (level BETWEEN 1 AND 5),
+    name VARCHAR(100) NOT NULL, -- "Kelas 1", "Kelas 2", etc.
+    bab_start INT NOT NULL,
+    bab_end INT NOT NULL,
+    teacher_id INT REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(academic_year_id, name)
 );
 
-CREATE TABLE courses (
+CREATE TABLE class_activities (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     class_id INT NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
-    teacher_id INT REFERENCES users(id) ON DELETE SET NULL,
-    name VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE course_activities (
-    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    course_id INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
     type VARCHAR(50) CHECK (type IN ('quiz', 'exam', 'assignment')) NOT NULL,
     title VARCHAR(255) NOT NULL,
     due_date TIMESTAMP WITH TIME ZONE,
@@ -50,7 +43,7 @@ CREATE TABLE course_activities (
 
 CREATE TABLE questions (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    activity_id INT NOT NULL REFERENCES course_activities(id) ON DELETE CASCADE,
+    activity_id INT NOT NULL REFERENCES class_activities(id) ON DELETE CASCADE,
     type VARCHAR(50) CHECK (type IN ('multiple_choice', 'essay', 'fill_in_the_blank')) NOT NULL,
     question_text TEXT NOT NULL,
     image_url VARCHAR(255),

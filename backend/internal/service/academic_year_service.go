@@ -18,13 +18,15 @@ type AcademicYearService interface {
 
 	// Classes
 	ListClasses(ctx context.Context, academicYearID int) ([]models.Class, error)
-	CreateClass(ctx context.Context, name string, level int) (*models.Class, error)
-	RenameClass(ctx context.Context, id int, name string) (*models.Class, error)
+	GetClass(ctx context.Context, id int) (*models.Class, error)
+	CreateClass(ctx context.Context, name string, babStart, babEnd int, teacherID *int) (*models.Class, error)
+	RenameClass(ctx context.Context, id int, name string, babStart, babEnd int, teacherID *int) (*models.Class, error)
 	DeleteClass(ctx context.Context, id int) error
 
 	// Enrollments
 	ListEnrollments(ctx context.Context, classID int) ([]models.ClassEnrollment, error)
 	EnrollStudent(ctx context.Context, classID, userID int) (*models.ClassEnrollment, error)
+	EnrollBulkStudents(ctx context.Context, classID int, userIDs []int) error
 	UnenrollStudent(ctx context.Context, classID, userID int) error
 }
 
@@ -92,12 +94,15 @@ func (s *academicYearService) CreateAcademicYear(ctx context.Context, yearRange 
 		}
 		newYear.ID = insertedID
 
-		// Auto-generate Class 1 through 5
-		for level := 1; level <= 5; level++ {
-			className := fmt.Sprintf("Kelas %d", level)
+		// Auto-generate Class 1 through 8
+		babs := []struct{ Start, End int }{
+			{1, 6}, {7, 12}, {13, 18}, {19, 25}, {26, 31}, {32, 37}, {38, 44}, {45, 50},
+		}
+		for i, b := range babs {
+			className := fmt.Sprintf("Kelas %d", i+1)
 			if err := tx.Exec(
-				`INSERT INTO classes (academic_year_id, name, level) VALUES (?, ?, ?)`,
-				newYear.ID, className, level,
+				`INSERT INTO classes (academic_year_id, name, bab_start, bab_end) VALUES (?, ?, ?, ?)`,
+				newYear.ID, className, b.Start, b.End,
 			).Error; err != nil {
 				return fmt.Errorf("gagal membuat %s: %w", className, err)
 			}
@@ -162,7 +167,7 @@ func (s *academicYearService) DeleteAcademicYear(ctx context.Context, id int) er
 // ListClasses returns classes for a given academic year (or active year if 0).
 func (s *academicYearService) ListClasses(ctx context.Context, academicYearID int) ([]models.Class, error) {
 	var classes []models.Class
-	query := s.db.WithContext(ctx).Preload("AcademicYear").Order("level ASC")
+	query := s.db.WithContext(ctx).Preload("AcademicYear").Preload("Teacher").Order("bab_start ASC")
 	if academicYearID > 0 {
 		query = query.Where("academic_year_id = ?", academicYearID)
 	}
@@ -172,28 +177,37 @@ func (s *academicYearService) ListClasses(ctx context.Context, academicYearID in
 	return classes, nil
 }
 
+// GetClass returns a single class by id.
+func (s *academicYearService) GetClass(ctx context.Context, id int) (*models.Class, error) {
+	var cls models.Class
+	if err := s.db.WithContext(ctx).Preload("AcademicYear").Preload("Teacher").First(&cls, id).Error; err != nil {
+		return nil, errors.New("kelas tidak ditemukan")
+	}
+	return &cls, nil
+}
+
 // CreateClass creates a new class and automatically links it to the active academic year.
-func (s *academicYearService) CreateClass(ctx context.Context, name string, level int) (*models.Class, error) {
+func (s *academicYearService) CreateClass(ctx context.Context, name string, babStart, babEnd int, teacherID *int) (*models.Class, error) {
 	// Find active academic year
 	activeYear, err := s.GetActiveYear(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("tidak ada tahun ajaran aktif — aktifkan tahun ajaran dahulu: %w", err)
 	}
 
-	var insertedID int
-	if err := s.db.WithContext(ctx).Raw(
-		`INSERT INTO classes (academic_year_id, name, level) VALUES (?, ?, ?) RETURNING id`,
-		activeYear.ID, name, level,
-	).Scan(&insertedID).Error; err != nil {
+	class := &models.Class{
+		AcademicYearID: activeYear.ID,
+		Name:           name,
+		BabStart:       babStart,
+		BabEnd:         babEnd,
+		TeacherID:      teacherID,
+	}
+
+	if err := s.db.WithContext(ctx).Create(class).Error; err != nil {
 		return nil, fmt.Errorf("gagal membuat kelas: %w", err)
 	}
 
-	return &models.Class{
-		ID:             insertedID,
-		AcademicYearID: activeYear.ID,
-		Name:           name,
-		Level:          level,
-	}, nil
+	s.db.WithContext(ctx).Preload("Teacher").First(class, class.ID)
+	return class, nil
 }
 
 // DeleteClass removes a class by ID.
@@ -208,16 +222,20 @@ func (s *academicYearService) DeleteClass(ctx context.Context, id int) error {
 	return nil
 }
 
-// RenameClass updates the name of a class.
-func (s *academicYearService) RenameClass(ctx context.Context, id int, name string) (*models.Class, error) {
+// RenameClass updates a class' details.
+func (s *academicYearService) RenameClass(ctx context.Context, id int, name string, babStart, babEnd int, teacherID *int) (*models.Class, error) {
 	var cls models.Class
 	if err := s.db.WithContext(ctx).First(&cls, id).Error; err != nil {
 		return nil, errors.New("kelas tidak ditemukan")
 	}
 	cls.Name = name
+	cls.BabStart = babStart
+	cls.BabEnd = babEnd
+	cls.TeacherID = teacherID
 	if err := s.db.WithContext(ctx).Save(&cls).Error; err != nil {
 		return nil, err
 	}
+	s.db.WithContext(ctx).Preload("Teacher").First(&cls, cls.ID)
 	return &cls, nil
 }
 
@@ -258,6 +276,30 @@ func (s *academicYearService) EnrollStudent(ctx context.Context, classID, userID
 	return enrollment, nil
 }
 
+// EnrollBulkStudents registers multiple students into a class at once.
+func (s *academicYearService) EnrollBulkStudents(ctx context.Context, classID int, userIDs []int) error {
+	var cls models.Class
+	if err := s.db.WithContext(ctx).First(&cls, classID).Error; err != nil {
+		return errors.New("kelas tidak ditemukan")
+	}
+
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, userID := range userIDs {
+			var user models.User
+			if err := tx.First(&user, userID).Error; err != nil {
+				continue // skip invalid users
+			}
+			if user.Role != "student" {
+				continue // skip non-students
+			}
+			enrollment := &models.ClassEnrollment{ClassID: classID, UserID: userID}
+			// Ignore errors on create (e.g. if already enrolled)
+			tx.Create(enrollment)
+		}
+		return nil
+	})
+}
+
 // UnenrollStudent removes a student from a class.
 func (s *academicYearService) UnenrollStudent(ctx context.Context, classID, userID int) error {
 	result := s.db.WithContext(ctx).
@@ -271,4 +313,3 @@ func (s *academicYearService) UnenrollStudent(ctx context.Context, classID, user
 	}
 	return nil
 }
-

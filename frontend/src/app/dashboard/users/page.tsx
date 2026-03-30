@@ -18,6 +18,7 @@ import {
     UserCheck,
     UserX,
     ChevronRight,
+    Camera,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL
@@ -116,10 +117,19 @@ const AVATAR_COLORS = [
     ["#0F766E", "#34D399"],
     ["#BE185D", "#F9A8D4"],
 ];
-function UserAvatar({ name, email, size = 9 }: { name?: string; email: string; size?: number }) {
+function UserAvatar({ name, email, photo, size = 9 }: { name?: string; email: string; photo?: string; size?: number }) {
     const idx = email.charCodeAt(0) % AVATAR_COLORS.length;
     const [from, to] = AVATAR_COLORS[idx];
     const letter = (name || email)[0]?.toUpperCase() ?? "?";
+
+    if (photo) {
+        return (
+            <div className={`w-${size} h-${size} rounded-2xl overflow-hidden shrink-0 shadow-sm border border-[var(--border)]`}>
+                <img src={`http://localhost:8080${photo}`} alt="Avatar" className="w-full h-full object-cover" />
+            </div>
+        );
+    }
+
     return (
         <div
             className={`w-${size} h-${size} rounded-2xl flex items-center justify-center text-white font-bold shrink-0 shadow-sm`}
@@ -193,7 +203,8 @@ export default function UsersPage() {
 
     // Edit modal
     const [editUser, setEditUser] = useState<User | null>(null);
-    const [editForm, setEditForm] = useState({ name: "", nis: "", active: true });
+    const [editForm, setEditForm] = useState({ name: "", nis: "", active: true, photo: "" });
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
     // Password reset modal
     const [pwUser, setPwUser] = useState<User | null>(null);
@@ -283,6 +294,34 @@ export default function UsersPage() {
         } catch { showToast("Gagal memperbarui pengguna", "error"); }
     };
 
+    const handleAdminPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || !e.target.files[0] || !editUser) return;
+        setUploadingPhoto(true);
+        try {
+            const file = e.target.files[0];
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const res = await fetch(`${API_BASE}/users/${editUser.id}/photo`, {
+                method: "POST",
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setEditForm({ ...editForm, photo: data.data.Photo || data.data.photo });
+                showToast("Foto profil pengguna berhasil diperbarui!");
+                fetchUsers(); // Refresh background list
+            } else {
+                showToast(data.error || "Gagal mengunggah foto profil", "error");
+            }
+        } catch (error) {
+            console.error(error);
+            showToast("Kesalahan jaringan saat mengunggah foto", "error");
+        } finally {
+            setUploadingPhoto(false);
+        }
+    };
+
     const handlePasswordReset = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!pwUser) return;
@@ -317,7 +356,7 @@ export default function UsersPage() {
 
     const openEdit = (u: User) => {
         setEditUser(u);
-        setEditForm({ name: u.name ?? "", nis: u.nis ?? "", active: u.active });
+        setEditForm({ name: u.name ?? "", nis: u.nis ?? "", active: u.active, photo: u.photo ?? "" });
     };
 
     const tabs: { key: RoleTab; label: string; labelJa: string; icon: React.ElementType; count: number }[] = [
@@ -471,7 +510,7 @@ export default function UsersPage() {
                                     >
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <UserAvatar name={u.name} email={u.email} size={10} />
+                                                <UserAvatar name={u.name} email={u.email} photo={u.photo} size={10} />
                                                 <div>
                                                     <p className="font-semibold text-[#0D1B2A] leading-tight">
                                                         {u.name || <span className="italic text-gray-300">(Belum diatur)</span>}
@@ -691,8 +730,14 @@ export default function UsersPage() {
                     subtitle={editUser.email}
                     onClose={() => setEditUser(null)}
                 >
-                    <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-2xl mb-6">
-                        <UserAvatar name={editUser.name} email={editUser.email} size={12} />
+                    <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl mb-6">
+                        <div className="relative group shrink-0">
+                            <UserAvatar name={editUser.name} email={editUser.email} photo={editForm.photo || editUser.photo} size={14} />
+                            <label className={`absolute -bottom-2 -right-2 p-1.5 rounded-full cursor-pointer shadow-md transition-transform hover:scale-105 ${uploadingPhoto ? 'opacity-50 pointer-events-none' : ''}`} style={{ background: "var(--accent)", color: "white" }} title="Ubah Foto Profil">
+                                <Camera size={14} />
+                                <input type="file" accept="image/*" className="hidden" onChange={handleAdminPhotoUpload} disabled={uploadingPhoto} />
+                            </label>
+                        </div>
                         <div>
                             <p className="font-semibold text-[#0D1B2A] text-sm">{editUser.name || "(Belum ada nama)"}</p>
                             <RoleBadge role={editUser.role} />

@@ -1,0 +1,2 @@
+.next/dev/types/validator.ts(105,39): error TS2307: Cannot find module '../../../src/app/dashboard/courses/page.js' or its corresponding type declarations.
+src/app/dashboard/classes/page.tsx(20,21): error TS2307: Cannot find module 'js-cookie' or its corresponding type declarations.

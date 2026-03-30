@@ -96,14 +96,14 @@ export default function LoginPage() {
                 {/* Center content */}
                 <div className="flex flex-col gap-9 relative z-10">
                     <div
-                        className="rounded-2xl p-4 inline-block w-fit"
-                        style={{ background: "rgba(255,255,255,0.07)" }}
+                        className="inline-block w-fit"
+                        style={{ background: "transparent" }}
                     >
                         <Image
                             src="/logo.png"
                             alt="LPK Mori Logo"
-                            width={150}
-                            height={52}
+                            width={280}
+                            height={96}
                             className="object-contain"
                             priority
                         />
@@ -187,8 +187,8 @@ export default function LoginPage() {
                     <Image
                         src="/logo.png"
                         alt="LPK Mori"
-                        width={130}
-                        height={44}
+                        width={220}
+                        height={76}
                         className="object-contain"
                     />
                     <div className="flex gap-2">
@@ -261,7 +261,7 @@ export default function LoginPage() {
                                 required
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                placeholder="admin@lpkmori.com"
+                                placeholder="email"
                                 className="w-full px-4 py-3 rounded-xl text-sm transition-all"
                                 style={{
                                     background: "var(--bg-canvas)",

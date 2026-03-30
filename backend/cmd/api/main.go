@@ -19,7 +19,6 @@ import (
 	"lpkmori-backend/internal/service"
 )
 
-
 func main() {
 	// Setup Database connection string
 	dsn := "host=" + getEnv("DB_HOST", "localhost") +
@@ -28,7 +27,7 @@ func main() {
 		" dbname=" + getEnv("DB_NAME", "lpkmori_db") +
 		" port=" + getEnv("DB_PORT", "5432") +
 		" sslmode=disable"
-		
+
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -41,8 +40,7 @@ func main() {
 		&models.AcademicYear{},
 		&models.Class{},
 		&models.ClassEnrollment{},
-		&models.Course{},
-		&models.CourseActivity{},
+		&models.ClassActivity{},
 		&models.Question{},
 		&models.QuestionOption{},
 		&models.StudentAnswer{},
@@ -53,17 +51,19 @@ func main() {
 		&models.ExamAnswer{},
 		&models.Notification{},
 		&models.Announcement{},
+		&models.GradeRecap{},
+		&models.ExamSubmission{},
 	)
 
-	// Seed default admin on first startup using proper Go bcrypt
-	seedAdmin(db)
+	// Seed default users on first startup
+	seedUsers(db)
 
 	// Initialize Services
 	academicSvc := service.NewAcademicYearService(db)
 	authSvc := service.NewAuthService(db, getEnv("JWT_SECRET", "super_secret_jwt_key_change_in_production"))
 	userSvc := service.NewUserService(db)
-	courseSvc := service.NewCourseService(db)
 	assignSvc := service.NewAssignmentService(db)
+	gradeSvc := service.NewGradeService(db)
 
 	router := gin.Default()
 
@@ -176,11 +176,27 @@ func main() {
 				c.JSON(http.StatusOK, gin.H{"data": list})
 			})
 
+			// GET /api/v1/classes/:id
+			classes.GET("/:id", func(c *gin.Context) {
+				var id int
+				if _, err := fmt.Sscan(c.Param("id"), &id); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "ID tidak valid"})
+					return
+				}
+				cls, err := academicSvc.GetClass(c.Request.Context(), id)
+				if err != nil {
+					c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{"data": cls})
+			})
+
 			// POST /api/v1/classes  — auto-linked to active academic year
-			// Body: { "name": "Kelas 6", "level": 6 }
 			type CreateClassInput struct {
-				Name  string `json:"name"  binding:"required"`
-				Level int    `json:"level" binding:"required"`
+				Name      string `json:"name"      binding:"required"`
+				BabStart  int    `json:"bab_start" binding:"required"`
+				BabEnd    int    `json:"bab_end"   binding:"required"`
+				TeacherID *int   `json:"teacher_id"`
 			}
 			classes.POST("", func(c *gin.Context) {
 				var input CreateClassInput
@@ -188,7 +204,7 @@ func main() {
 					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 					return
 				}
-				newClass, err := academicSvc.CreateClass(c.Request.Context(), input.Name, input.Level)
+				newClass, err := academicSvc.CreateClass(c.Request.Context(), input.Name, input.BabStart, input.BabEnd, input.TeacherID)
 				if err != nil {
 					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 					return
@@ -198,7 +214,10 @@ func main() {
 
 			// PATCH /api/v1/classes/:id — rename a class
 			type RenameClassInput struct {
-				Name string `json:"name" binding:"required"`
+				Name      string `json:"name"      binding:"required"`
+				BabStart  int    `json:"bab_start" binding:"required"`
+				BabEnd    int    `json:"bab_end"   binding:"required"`
+				TeacherID *int   `json:"teacher_id"`
 			}
 			classes.PATCH("/:id", func(c *gin.Context) {
 				var id int
@@ -211,7 +230,7 @@ func main() {
 					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 					return
 				}
-				cls, err := academicSvc.RenameClass(c.Request.Context(), id, input.Name)
+				cls, err := academicSvc.RenameClass(c.Request.Context(), id, input.Name, input.BabStart, input.BabEnd, input.TeacherID)
 				if err != nil {
 					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 					return
@@ -232,6 +251,50 @@ func main() {
 				}
 				c.JSON(http.StatusOK, gin.H{"message": "Kelas berhasil dihapus"})
 			})
+
+			// GET /classes/:id/recap
+			classes.GET("/:id/recap",
+				middleware.Auth(authSvc), middleware.RequireRole("teacher"),
+				func(c *gin.Context) {
+					var id int
+					fmt.Sscan(c.Param("id"), &id)
+					list, err := gradeSvc.GetClassRecap(c.Request.Context(), id)
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, gin.H{"data": list})
+				},
+			)
+
+			// POST /classes/:id/recap/:student_id - save/update recap
+			classes.POST("/:id/recap/:student_id",
+				middleware.Auth(authSvc), middleware.RequireRole("teacher"),
+				func(c *gin.Context) {
+					var classID, studentID int
+					fmt.Sscan(c.Param("id"), &classID)
+					fmt.Sscan(c.Param("student_id"), &studentID)
+					teacherID, _ := c.Get(middleware.CtxUserID)
+
+					type RecapInput struct {
+						Status     string  `json:"status"`
+						Notes      string  `json:"notes"`
+						FinalScore float64 `json:"final_score"`
+					}
+					var input RecapInput
+					if err := c.ShouldBindJSON(&input); err != nil {
+						c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+						return
+					}
+
+					recap, err := gradeSvc.SaveRecap(c.Request.Context(), classID, studentID, input.Status, input.Notes, input.FinalScore, teacherID.(int))
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, gin.H{"message": "Recap saved", "data": recap})
+				},
+			)
 
 			// GET /api/v1/classes/:id/enrollments
 			classes.GET("/:id/enrollments", func(c *gin.Context) {
@@ -269,6 +332,28 @@ func main() {
 					return
 				}
 				c.JSON(http.StatusCreated, gin.H{"message": "Siswa berhasil didaftarkan", "data": enrollment})
+			})
+
+			// POST /api/v1/classes/:id/enrollments/bulk — add multiple students
+			type EnrollBulkInput struct {
+				UserIDs []int `json:"user_ids" binding:"required"`
+			}
+			classes.POST("/:id/enrollments/bulk", func(c *gin.Context) {
+				var classID int
+				if _, err := fmt.Sscan(c.Param("id"), &classID); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "ID tidak valid"})
+					return
+				}
+				var input EnrollBulkInput
+				if err := c.ShouldBindJSON(&input); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+				if err := academicSvc.EnrollBulkStudents(c.Request.Context(), classID, input.UserIDs); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusCreated, gin.H{"message": "Siswa berhasil didaftarkan secara massal"})
 			})
 
 			// DELETE /api/v1/classes/:id/enrollments/:user_id  — remove student from class
@@ -317,10 +402,10 @@ func main() {
 				Email    string `json:"email"    binding:"required,email"`
 				Password string `json:"password" binding:"required,min=6"`
 				Role     string `json:"role"     binding:"required"`
-				Name     string `json:"name"`     // optional
-				NIS      string `json:"nis"`      // optional (for students)
-				Photo    string `json:"photo"`    // optional
-				Active   *bool  `json:"active"`   // optional, defaults to true
+				Name     string `json:"name"`   // optional
+				NIS      string `json:"nis"`    // optional (for students)
+				Photo    string `json:"photo"`  // optional
+				Active   *bool  `json:"active"` // optional, defaults to true
 			}
 
 			auth.POST("/register", func(c *gin.Context) {
@@ -430,6 +515,39 @@ func main() {
 				c.JSON(http.StatusOK, gin.H{"message": "User deleted"})
 			})
 
+			// POST /api/v1/users/:id/photo
+			users.POST("/:id/photo", func(c *gin.Context) {
+				var id int
+				if _, err := fmt.Sscan(c.Param("id"), &id); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+					return
+				}
+
+				fileHeader, err := c.FormFile("file")
+				if err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "File tidak ditemukan: " + err.Error()})
+					return
+				}
+
+				dst := fmt.Sprintf("%s/profile_%d_%s", getEnv("UPLOAD_DIR", "/app/uploads"), id, fileHeader.Filename)
+				if err := c.SaveUploadedFile(fileHeader, dst); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal menyimpan file: " + err.Error()})
+					return
+				}
+
+				fileURL := fmt.Sprintf("/uploads/profile_%d_%s", id, fileHeader.Filename)
+
+				user, err := userSvc.UpdateUser(c.Request.Context(), id, map[string]interface{}{
+					"photo": fileURL,
+				})
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal update foto: " + err.Error()})
+					return
+				}
+
+				c.JSON(http.StatusOK, gin.H{"message": "Foto profil diperbarui", "data": user})
+			})
+
 			// PATCH /api/v1/users/:id/password — Admin resets a user's password
 			type ResetPasswordInput struct {
 				Password string `json:"password" binding:"required,min=6"`
@@ -458,103 +576,6 @@ func main() {
 			})
 		}
 
-		// ─── Course (Mata Pelajaran) CRUD ───────────────────────────────────────
-		// GET is public (all roles), write operations require teacher role.
-		courses := api.Group("/courses")
-		{
-			// GET /api/v1/courses?class_id=1&teacher_id=2
-			// Returns all courses, optionally filtered by class or teacher.
-			courses.GET("", func(c *gin.Context) {
-				var classID, teacherID int
-				fmt.Sscan(c.Query("class_id"), &classID)
-				fmt.Sscan(c.Query("teacher_id"), &teacherID)
-				list, err := courseSvc.ListCourses(c.Request.Context(), classID, teacherID)
-				if err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-					return
-				}
-				c.JSON(http.StatusOK, gin.H{"data": list})
-			})
-
-			// POST /api/v1/courses — TEACHER ONLY, teacher_id auto-filled from JWT
-			type CreateCourseInput struct {
-				ClassID int    `json:"class_id" binding:"required"`
-				Name    string `json:"name"     binding:"required"`
-			}
-			courses.POST("",
-				middleware.Auth(authSvc),
-				middleware.RequireRole("teacher"),
-				func(c *gin.Context) {
-					var input CreateCourseInput
-					if err := c.ShouldBindJSON(&input); err != nil {
-						c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-						return
-					}
-
-					// teacher_id is taken directly from the JWT — not from the request body
-					teacherID, _ := c.Get(middleware.CtxUserID)
-					course, err := courseSvc.CreateCourse(
-						c.Request.Context(),
-						input.ClassID,
-						teacherID.(int),
-						input.Name,
-					)
-					if err != nil {
-						c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-						return
-					}
-					c.JSON(http.StatusCreated, gin.H{"message": "Mata pelajaran berhasil ditambahkan", "data": course})
-				},
-			)
-
-			// PATCH /api/v1/courses/:id — rename; only the owning teacher
-			type UpdateCourseInput struct {
-				Name string `json:"name" binding:"required"`
-			}
-			courses.PATCH("/:id",
-				middleware.Auth(authSvc),
-				middleware.RequireRole("teacher"),
-				func(c *gin.Context) {
-					var id int
-					if _, err := fmt.Sscan(c.Param("id"), &id); err != nil {
-						c.JSON(http.StatusBadRequest, gin.H{"error": "ID tidak valid"})
-						return
-					}
-					var input UpdateCourseInput
-					if err := c.ShouldBindJSON(&input); err != nil {
-						c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-						return
-					}
-					teacherID, _ := c.Get(middleware.CtxUserID)
-					course, err := courseSvc.UpdateCourse(c.Request.Context(), id, teacherID.(int), input.Name)
-					if err != nil {
-						c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-						return
-					}
-					c.JSON(http.StatusOK, gin.H{"message": "Mata pelajaran diperbarui", "data": course})
-				},
-			)
-
-			// DELETE /api/v1/courses/:id — only the owning teacher
-			courses.DELETE("/:id",
-				middleware.Auth(authSvc),
-				middleware.RequireRole("teacher"),
-				func(c *gin.Context) {
-					var id int
-					if _, err := fmt.Sscan(c.Param("id"), &id); err != nil {
-						c.JSON(http.StatusBadRequest, gin.H{"error": "ID tidak valid"})
-						return
-					}
-					teacherID, _ := c.Get(middleware.CtxUserID)
-					if err := courseSvc.DeleteCourse(c.Request.Context(), id, teacherID.(int)); err != nil {
-						c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-						return
-					}
-					c.JSON(http.StatusOK, gin.H{"message": "Mata pelajaran dihapus"})
-				},
-			)
-		}
-
 		// Serve uploaded files statically
 		router.Static("/uploads", getEnv("UPLOAD_DIR", "/app/uploads"))
 
@@ -562,10 +583,11 @@ func main() {
 		// GET is open; POST/DELETE require teacher auth.
 		assignments := api.Group("/assignments")
 		{
+			// GET /api/v1/assignments?class_id=1
 			assignments.GET("", func(c *gin.Context) {
-				var courseID int
-				fmt.Sscan(c.Query("course_id"), &courseID)
-				list, err := assignSvc.ListAssignments(c.Request.Context(), courseID)
+				var classID int
+				fmt.Sscan(c.Query("class_id"), &classID)
+				list, err := assignSvc.ListAssignments(c.Request.Context(), classID)
 				if err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 					return
@@ -589,36 +611,40 @@ func main() {
 				},
 			)
 
-			// POST multipart/form-data: title, desc, due_date, file(optional)
 			assignments.POST("",
 				middleware.Auth(authSvc), middleware.RequireRole("teacher"),
 				func(c *gin.Context) {
-					var courseID int
-					fmt.Sscan(c.PostForm("course_id"), &courseID)
-					title := c.PostForm("title")
-					if title == "" || courseID == 0 {
-						c.JSON(http.StatusBadRequest, gin.H{"error": "course_id dan title wajib diisi"})
+					classIDStr := c.PostForm("class_id")
+					var classID int
+					if _, err := fmt.Sscan(classIDStr, &classID); err != nil {
+						c.JSON(http.StatusBadRequest, gin.H{"error": "class_id tidak valid"})
 						return
 					}
-					desc := c.PostForm("description")
-					fileURL := ""
 
-					// Handle optional file upload
-					if fileHeader, err := c.FormFile("file"); err == nil {
-						dst := fmt.Sprintf("%s/%d_%s", getEnv("UPLOAD_DIR", "/app/uploads"), courseID, fileHeader.Filename)
-						if err := c.SaveUploadedFile(fileHeader, dst); err == nil {
-							fileURL = "/uploads/" + fmt.Sprintf("%d_%s", courseID, fileHeader.Filename)
-						}
+					title := c.PostForm("title")
+					if title == "" {
+						c.JSON(http.StatusBadRequest, gin.H{"error": "title is required"})
+						return
 					}
+					description := c.PostForm("description")
 
 					var dueDate *time.Time
-					if ds := c.PostForm("due_date"); ds != "" {
-						if t, err := time.Parse(time.RFC3339, ds); err == nil {
+					dueDateStr := c.PostForm("due_date")
+					if dueDateStr != "" {
+						if t, err := time.Parse(time.RFC3339, dueDateStr); err == nil {
 							dueDate = &t
 						}
 					}
 
-					a, err := assignSvc.CreateAssignment(c.Request.Context(), courseID, title, desc, fileURL, dueDate)
+					fileURL := ""
+					if fileHeader, err := c.FormFile("file"); err == nil {
+						dst := fmt.Sprintf("%s/assign_%d_%s", getEnv("UPLOAD_DIR", "/app/uploads"), classID, fileHeader.Filename)
+						if err := c.SaveUploadedFile(fileHeader, dst); err == nil {
+							fileURL = fmt.Sprintf("/uploads/assign_%d_%s", classID, fileHeader.Filename)
+						}
+					}
+
+					a, err := assignSvc.CreateAssignment(c.Request.Context(), classID, title, description, fileURL, dueDate)
 					if err != nil {
 						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 						return
@@ -694,8 +720,8 @@ func main() {
 
 			// PATCH /assignments/:id/submissions/:sub_id/grade — teacher grades
 			type GradeInput struct {
-				Grade    float64 `json:"grade"    binding:"required"`
-				Feedback string  `json:"feedback"`
+				Grade    *float64 `json:"grade"    binding:"required"`
+				Feedback string   `json:"feedback"`
 			}
 			assignments.PATCH("/:id/submissions/:sub_id/grade",
 				middleware.Auth(authSvc), middleware.RequireRole("teacher"),
@@ -707,7 +733,7 @@ func main() {
 						c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 						return
 					}
-					sub, err := assignSvc.GradeSubmission(c.Request.Context(), subID, input.Grade, input.Feedback)
+					sub, err := assignSvc.GradeSubmission(c.Request.Context(), subID, *input.Grade, input.Feedback)
 					if err != nil {
 						c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 						return
@@ -721,9 +747,9 @@ func main() {
 		exams := api.Group("/exams")
 		{
 			exams.GET("", func(c *gin.Context) {
-				var courseID int
-				fmt.Sscan(c.Query("course_id"), &courseID)
-				list, err := assignSvc.ListExams(c.Request.Context(), courseID)
+				var classID int
+				fmt.Sscan(c.Query("class_id"), &classID)
+				list, err := assignSvc.ListExams(c.Request.Context(), classID)
 				if err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 					return
@@ -743,21 +769,22 @@ func main() {
 			})
 
 			type CreateExamInput struct {
-				CourseID    int        `json:"course_id"   binding:"required"`
+				ClassID     int        `json:"class_id"    binding:"required"`
 				Title       string     `json:"title"       binding:"required"`
 				Description string     `json:"description"`
 				StartTime   *time.Time `json:"start_time"`
 				EndTime     *time.Time `json:"end_time"`
+				MaxAttempts int        `json:"max_attempts"`
 			}
 			exams.POST("",
-				middleware.Auth(authSvc), middleware.RequireRole("teacher"),
+				middleware.Auth(authSvc), middleware.RequireRole("teacher", "admin"),
 				func(c *gin.Context) {
 					var input CreateExamInput
 					if err := c.ShouldBindJSON(&input); err != nil {
 						c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 						return
 					}
-					exam, err := assignSvc.CreateExam(c.Request.Context(), input.CourseID, input.Title, input.Description, input.StartTime, input.EndTime)
+					exam, err := assignSvc.CreateExam(c.Request.Context(), input.ClassID, input.Title, input.Description, input.StartTime, input.EndTime, input.MaxAttempts)
 					if err != nil {
 						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 						return
@@ -766,8 +793,27 @@ func main() {
 				},
 			)
 
+			exams.PUT("/:id",
+				middleware.Auth(authSvc), middleware.RequireRole("teacher", "admin"),
+				func(c *gin.Context) {
+					var id int
+					fmt.Sscan(c.Param("id"), &id)
+					var input CreateExamInput
+					if err := c.ShouldBindJSON(&input); err != nil {
+						c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+						return
+					}
+					err := assignSvc.EditExam(c.Request.Context(), id, input.Title, input.Description, input.StartTime, input.EndTime, input.MaxAttempts)
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, gin.H{"message": "Ujian diperbarui"})
+				},
+			)
+
 			exams.DELETE("/:id",
-				middleware.Auth(authSvc), middleware.RequireRole("teacher"),
+				middleware.Auth(authSvc), middleware.RequireRole("teacher", "admin"),
 				func(c *gin.Context) {
 					var id int
 					fmt.Sscan(c.Param("id"), &id)
@@ -784,7 +830,7 @@ func main() {
 				Options      json.RawMessage `json:"options"` // [{"text":"A","is_correct":true},...]
 			}
 			exams.POST("/:id/questions",
-				middleware.Auth(authSvc), middleware.RequireRole("teacher"),
+				middleware.Auth(authSvc), middleware.RequireRole("teacher", "admin"),
 				func(c *gin.Context) {
 					var examID int
 					fmt.Sscan(c.Param("id"), &examID)
@@ -797,7 +843,7 @@ func main() {
 					if points == 0 {
 						points = 1
 					}
-					q, err := assignSvc.AddQuestion(c.Request.Context(), examID, input.QuestionType, input.Text, points, []byte(input.Options))
+					q, err := assignSvc.AddQuestion(c.Request.Context(), examID, input.QuestionType, input.Text, points, input.Options)
 					if err != nil {
 						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 						return
@@ -806,8 +852,31 @@ func main() {
 				},
 			)
 
+			exams.PUT("/questions/:qid",
+				middleware.Auth(authSvc), middleware.RequireRole("teacher", "admin"),
+				func(c *gin.Context) {
+					var qid int
+					fmt.Sscan(c.Param("qid"), &qid)
+					var input AddQuestionInput
+					if err := c.ShouldBindJSON(&input); err != nil {
+						c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+						return
+					}
+					points := input.Points
+					if points == 0 {
+						points = 1
+					}
+					q, err := assignSvc.EditQuestion(c.Request.Context(), qid, input.QuestionType, input.Text, points, input.Options)
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, gin.H{"message": "Soal berhasil diperbarui", "data": q})
+				},
+			)
+
 			exams.DELETE("/questions/:qid",
-				middleware.Auth(authSvc), middleware.RequireRole("teacher"),
+				middleware.Auth(authSvc), middleware.RequireRole("teacher", "admin"),
 				func(c *gin.Context) {
 					var qid int
 					fmt.Sscan(c.Param("qid"), &qid)
@@ -816,25 +885,105 @@ func main() {
 				},
 			)
 
-			// POST /exams/questions/:qid/answers — student submits answer
-			type SubmitAnswerInput struct {
-				AnswerText string `json:"answer_text"`
-				FileURL    string `json:"file_url"`
-			}
 			exams.POST("/questions/:qid/answers",
 				middleware.Auth(authSvc), middleware.RequireRole("student"),
 				func(c *gin.Context) {
 					var qid int
 					fmt.Sscan(c.Param("qid"), &qid)
-					var input SubmitAnswerInput
-					c.ShouldBindJSON(&input)
+					
+					answerText := c.PostForm("answer_text")
+					fileURL := ""
+
+					if fileHeader, err := c.FormFile("file"); err == nil {
+						// Store simple local path for now or abstract if desired
+						dst := fmt.Sprintf("./uploads/exam_ans_%d_%s", qid, fileHeader.Filename)
+						os.MkdirAll("./uploads", os.ModePerm)
+						if err := c.SaveUploadedFile(fileHeader, dst); err == nil {
+							fileURL = "/uploads/" + fmt.Sprintf("exam_ans_%d_%s", qid, fileHeader.Filename)
+						}
+					}
+
 					studentID, _ := c.Get(middleware.CtxUserID)
-					ans, err := assignSvc.SubmitAnswer(c.Request.Context(), qid, studentID.(int), input.AnswerText, input.FileURL)
+					ans, err := assignSvc.SubmitAnswer(c.Request.Context(), qid, studentID.(int), answerText, fileURL)
 					if err != nil {
 						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 						return
 					}
 					c.JSON(http.StatusCreated, gin.H{"data": ans})
+				},
+			)
+
+			// POST /exams/:id/submit — finishes the exam attempt
+			exams.POST("/:id/submit",
+				middleware.Auth(authSvc), middleware.RequireRole("student"),
+				func(c *gin.Context) {
+					var examID int
+					fmt.Sscan(c.Param("id"), &examID)
+					studentID, _ := c.Get(middleware.CtxUserID)
+					totalScore, maxScore, score100, err := assignSvc.FinishExamAttempt(c.Request.Context(), examID, studentID.(int))
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, gin.H{
+						"message":    "Ujian selesai dikumpulkan",
+						"total_score": totalScore,
+						"max_score":   maxScore,
+						"score_100":   score100,
+					})
+				},
+			)
+
+			// Teacher grading routes
+			exams.GET("/:id/students",
+				middleware.Auth(authSvc), middleware.RequireRole("teacher", "admin"),
+				func(c *gin.Context) {
+					var examID int
+					fmt.Sscan(c.Param("id"), &examID)
+					students, err := assignSvc.GetExamStudents(c.Request.Context(), examID)
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, gin.H{"data": students})
+				},
+			)
+
+			exams.GET("/:id/students/:student_id/answers",
+				middleware.Auth(authSvc), middleware.RequireRole("teacher", "admin"),
+				func(c *gin.Context) {
+					var examID, studentID int
+					fmt.Sscan(c.Param("id"), &examID)
+					fmt.Sscan(c.Param("student_id"), &studentID)
+
+					answers, err := assignSvc.GetStudentAnswers(c.Request.Context(), examID, studentID)
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, gin.H{"data": answers})
+				},
+			)
+
+			type GradeAnswerInput struct {
+				Score float64 `json:"score"` // allow zero
+			}
+			exams.PATCH("/answers/:id/score",
+				middleware.Auth(authSvc), middleware.RequireRole("teacher", "admin"),
+				func(c *gin.Context) {
+					var answerID int
+					fmt.Sscan(c.Param("id"), &answerID)
+					var input GradeAnswerInput
+					if err := c.ShouldBindJSON(&input); err != nil {
+						c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+						return
+					}
+					ans, err := assignSvc.GradeAnswer(c.Request.Context(), answerID, input.Score)
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, gin.H{"message": "Nilai berhasil disimpan", "data": ans})
 				},
 			)
 		}
@@ -1026,11 +1175,21 @@ func main() {
 					var input UpdateAnnouncementInput
 					c.ShouldBindJSON(&input)
 					updates := map[string]interface{}{}
-					if input.Title != "" { updates["title"] = input.Title }
-					if input.TitleJa != "" { updates["title_ja"] = input.TitleJa }
-					if input.Content != "" { updates["content"] = input.Content }
-					if input.ContentJa != "" { updates["content_ja"] = input.ContentJa }
-					if input.IsActive != nil { updates["is_active"] = *input.IsActive }
+					if input.Title != "" {
+						updates["title"] = input.Title
+					}
+					if input.TitleJa != "" {
+						updates["title_ja"] = input.TitleJa
+					}
+					if input.Content != "" {
+						updates["content"] = input.Content
+					}
+					if input.ContentJa != "" {
+						updates["content_ja"] = input.ContentJa
+					}
+					if input.IsActive != nil {
+						updates["is_active"] = *input.IsActive
+					}
 					db.Model(&ann).Updates(updates)
 					db.Preload("Creator").First(&ann, id)
 					ann.Creator.Password = ""
@@ -1052,7 +1211,9 @@ func main() {
 					}
 					db.Model(&ann).Update("is_pinned", !ann.IsPinned)
 					pin := "disematkan"
-					if ann.IsPinned { pin = "dilepas" }
+					if ann.IsPinned {
+						pin = "dilepas"
+					}
 					c.JSON(http.StatusOK, gin.H{"message": "Pengumuman " + pin, "is_pinned": !ann.IsPinned})
 				},
 			)
@@ -1096,34 +1257,50 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-// seedAdmin creates the default super admin on first startup.
-// Uses Go's bcrypt directly — no shell escaping issues.
-func seedAdmin(db *gorm.DB) {
-	var count int64
-	db.Model(&models.User{}).Where("email = ?", "admin@lpkmori.com").Count(&count)
-	if count > 0 {
-		log.Println("Admin user already exists, skipping seed.")
-		return
+// seedUsers creates the default users for testing (Admin, Teacher, Student)
+func seedUsers(db *gorm.DB) {
+	users := []models.User{
+		{
+			Name:     "Super Admin",
+			Email:    "admin@lpkmoricentre.co.id",
+			Role:     "admin",
+			Password: "password123",
+			Active:   true,
+		},
+		{
+			Name:     "Sensei Guru",
+			Email:    "teacher@lpkmoricentre.co.id",
+			Role:     "teacher",
+			Password: "password123",
+			Active:   true,
+		},
+		{
+			Name:     "Siswa Berbakat",
+			Email:    "siswa@lpkmoricentre.co.id",
+			Role:     "student",
+			Password: "password123",
+			Active:   true,
+		},
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
-	if err != nil {
-		log.Printf("Failed to hash admin password: %v", err)
-		return
-	}
+	for _, u := range users {
+		var count int64
+		db.Model(&models.User{}).Where("email = ?", u.Email).Count(&count)
+		if count > 0 {
+			continue
+		}
 
-	admin := models.User{
-		Name:     "Super Admin",
-		Email:    "admin@lpkmori.com",
-		Role:     "admin",
-		Password: string(hash),
-		Active:   true,
-	}
+		hash, err := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
+		if err != nil {
+			log.Printf("Failed to hash password for %s: %v", u.Email, err)
+			continue
+		}
 
-	if err := db.Create(&admin).Error; err != nil {
-		log.Printf("Failed to seed admin user: %v", err)
-		return
+		u.Password = string(hash)
+		if err := db.Create(&u).Error; err != nil {
+			log.Printf("Failed to seed user %s: %v", u.Email, err)
+			continue
+		}
+		log.Printf("✅ Seeded user: %s (%s) / password123", u.Email, u.Role)
 	}
-
-	log.Println("✅ Seeded admin user: admin@lpkmori.com / password123")
 }

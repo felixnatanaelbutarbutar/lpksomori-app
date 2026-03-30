@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
     LayoutDashboard,
     Users,
@@ -23,6 +23,8 @@ import {
     ChevronRight,
     Megaphone,
     Menu,
+    Camera,
+    X,
 } from "lucide-react";
 
 import {
@@ -31,6 +33,8 @@ import {
     ROLE_META,
     type NavItem,
     type Role,
+    ALL_NAV_ITEMS,
+    getRolePermissions,
 } from "../../lib/roleHelper";
 
 import { NotificationBell } from "./notifications/page";
@@ -45,8 +49,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const [collapsed, setCollapsed] = useState(false);
     const [role, setRole] = useState<Role>("student");
     const [userName, setUserName] = useState("Pengguna");
+    const [userPhoto, setUserPhoto] = useState<string | null>(null);
+    const [fullUser, setFullUser] = useState<any>(null);
     const [navItems, setNavItems] = useState<NavItem[]>([]);
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const pathname = usePathname();
+    const router = useRouter();
 
     useEffect(() => {
         if (typeof window !== "undefined") {
@@ -54,15 +63,44 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             const parsedRole = parseRole(raw);
             setRole(parsedRole);
             setNavItems(getNavigationMenu(parsedRole));
+
+            // Authorization Check
+            if (pathname !== "/dashboard/not-authorized") {
+                const permissions = getRolePermissions(parsedRole);
+                
+                // Exclude check for index routes or some unprotected routes
+                if (pathname === "/dashboard" && parsedRole === "student") {
+                    router.replace("/dashboard/students/dashboard");
+                } else if (pathname !== "/dashboard" && pathname !== "/dashboard/students/dashboard" && pathname.startsWith("/dashboard/")) {
+                    // Find matching nav item
+                    const matchedItems = ALL_NAV_ITEMS.filter(item => 
+                        pathname === item.href || pathname.startsWith(item.href + "/")
+                    );
+                    
+                    if (matchedItems.length > 0) {
+                        // Sort by longest matching href to get the most specific
+                        matchedItems.sort((a, b) => b.href.length - a.href.length);
+                        const matched = matchedItems[0];
+                        
+                        // If role does not have permission for the matched feature
+                        if (!permissions[matched.feature]) {
+                            router.replace("/dashboard/not-authorized");
+                        }
+                    }
+                }
+            }
+            
             try {
                 const userJson = localStorage.getItem("mori_user");
                 if (userJson) {
                     const user = JSON.parse(userJson);
                     setUserName(user.Name || user.name || user.email || "Pengguna");
+                    setUserPhoto(user.photo || user.Photo || null);
+                    setFullUser(user);
                 }
             } catch { }
         }
-    }, []);
+    }, [pathname, router]);
 
     const roleMeta = ROLE_META[role];
     const initials = userName
@@ -76,11 +114,44 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         (n) => n.href === pathname || (n.href !== "/dashboard" && pathname.startsWith(n.href))
     )?.name ?? "Dashboard";
 
+    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || !e.target.files[0] || !fullUser) return;
+        setUploadingPhoto(true);
+        try {
+            const file = e.target.files[0];
+            const token = localStorage.getItem("mori_token");
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const res = await fetch(`http://localhost:8080/api/v1/users/${fullUser.id || fullUser.ID}/photo`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`
+                },
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok) {
+                const updatedUser = { ...fullUser, photo: data.data.Photo || data.data.photo };
+                localStorage.setItem("mori_user", JSON.stringify(updatedUser));
+                setUserPhoto(updatedUser.photo);
+                setFullUser(updatedUser);
+            } else {
+                alert(data.error || "Gagal mengunggah foto profil");
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Kesalahan jaringan saat mengunggah foto");
+        } finally {
+            setUploadingPhoto(false);
+        }
+    };
+
     return (
         <div className="flex min-h-screen" style={{ background: "var(--bg-canvas)" }}>
             {/* ── Sidebar ── */}
             <aside
-                className="flex flex-col transition-all duration-300 ease-in-out shrink-0 relative z-20"
+                className="fixed top-0 left-0 h-screen flex flex-col transition-all duration-300 ease-in-out z-20"
                 style={{
                     width: collapsed ? "68px" : "232px",
                     background: "var(--sidebar-bg)",
@@ -220,7 +291,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </aside>
 
             {/* ── Main Content ── */}
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div
+                className="flex-1 flex flex-col overflow-hidden transition-all duration-300"
+                style={{ marginLeft: collapsed ? "68px" : "232px" }}
+            >
                 {/* Top Bar */}
                 <header
                     className="h-[60px] flex items-center justify-between px-6 shrink-0"
@@ -265,7 +339,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         />
 
                         {/* User chip */}
-                        <div className="flex items-center gap-2.5">
+                        {/* User chip */}
+                        <button
+                            onClick={() => setIsProfileOpen(true)}
+                            className="flex items-center gap-2.5 transition-all outline-none rounded-full focus:ring-2 focus:ring-[var(--accent)] hover:opacity-80"
+                        >
                             <div className="text-right hidden sm:block">
                                 <p
                                     className="text-xs font-semibold max-w-[110px] truncate"
@@ -278,15 +356,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                 </p>
                             </div>
                             <div
-                                className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs"
+                                className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs overflow-hidden shrink-0"
                                 style={{
                                     background: `linear-gradient(135deg, ${roleMeta.color}, ${roleMeta.color}aa)`,
                                     boxShadow: `0 2px 8px ${roleMeta.color}40`,
                                 }}
                             >
-                                {initials || "?"}
+                                {userPhoto ? (
+                                    <img src={`http://localhost:8080${userPhoto}`} alt="Profile" className="w-full h-full object-cover" />
+                                ) : (
+                                    initials || "?"
+                                )}
                             </div>
-                        </div>
+                        </button>
                     </div>
                 </header>
 
@@ -297,6 +379,60 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     {children}
                 </main>
             </div>
+
+            {/* Profile Modal */}
+            {isProfileOpen && fullUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in p-4">
+                    <div className="bg-[var(--bg-surface)] rounded-2xl w-full max-w-sm shadow-xl overflow-hidden border border-[var(--border)] relative transform transition-all">
+                        <button
+                            onClick={() => setIsProfileOpen(false)}
+                            className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-[var(--bg-canvas)] transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                        >
+                            <X size={18} />
+                        </button>
+
+                        <div className="p-6">
+                            <h3 className="text-xl font-bold text-center mb-6 text-[var(--text-primary)]">Profil Pengguna</h3>
+
+                            <div className="flex flex-col items-center">
+                                <div className="relative group mb-4">
+                                    <div
+                                        className="w-24 h-24 rounded-full overflow-hidden flex items-center justify-center text-3xl font-bold text-white shadow-lg"
+                                        style={{ background: `linear-gradient(135deg, ${roleMeta.color}, ${roleMeta.color}aa)` }}
+                                    >
+                                        {userPhoto ? (
+                                            <img src={`http://localhost:8080${userPhoto}`} alt="Profile" className="w-full h-full object-cover" />
+                                        ) : (
+                                            initials || "?"
+                                        )}
+                                    </div>
+                                    <label className={`absolute bottom-0 right-0 p-2 rounded-full cursor-pointer shadow-md transition-transform hover:scale-105 ${uploadingPhoto ? 'opacity-50 pointer-events-none' : ''}`} style={{ background: "var(--accent)", color: "white" }} title="Ubah Foto Profil">
+                                        <Camera size={16} />
+                                        <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploadingPhoto} />
+                                    </label>
+                                </div>
+                                <h4 className="font-semibold text-lg text-[var(--text-primary)]">{userName}</h4>
+                                <p className="text-xs px-3 py-1.5 mt-1 rounded-full font-medium" style={{ color: roleMeta.color, background: roleMeta.bg }}>
+                                    {roleMeta.label} · {roleMeta.labelJa}
+                                </p>
+                            </div>
+
+                            <div className="mt-8 space-y-4">
+                                <div>
+                                    <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Email</p>
+                                    <p className="text-sm font-medium text-[var(--text-primary)] bg-[var(--bg-canvas)] px-3 py-2 rounded-lg border border-[var(--border)]">{fullUser.email || fullUser.Email || "-"}</p>
+                                </div>
+                                {(fullUser.nis || fullUser.NIS) && (
+                                    <div>
+                                        <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Nomor Induk Siswa (NIS)</p>
+                                        <p className="text-sm font-medium text-[var(--text-primary)] bg-[var(--bg-canvas)] px-3 py-2 rounded-lg border border-[var(--border)]">{fullUser.nis || fullUser.NIS}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -17,16 +17,18 @@ export type Feature =
     | "users"
     | "academic_years"
     | "classes"
-    | "courses"
     | "teacher_assignments"
     | "teacher_exams"
+    | "admin_exams"
     | "exams"
     | "question_bank"
-    | "my_courses"
     | "my_results"
     | "notifications"
     | "reports"
-    | "settings";
+    | "settings"
+    | "my_class"
+    | "student_assignments"
+    | "student_recap";
 
 type PermissionMap = Record<Feature, boolean>;
 
@@ -38,16 +40,18 @@ const PERMISSIONS: Record<Role, PermissionMap> = {
         users: true,
         academic_years: true,
         classes: true,
-        courses: true,
         teacher_assignments: false,
         teacher_exams: false,
-        exams: true,
+        admin_exams: true,
+        exams: false,
         question_bank: true,
-        my_courses: false,
         my_results: false,
         notifications: true,
         reports: true,
         settings: true,
+        my_class: false,
+        student_assignments: false,
+        student_recap: false,
     },
     teacher: {
         dashboard: true,
@@ -56,34 +60,38 @@ const PERMISSIONS: Record<Role, PermissionMap> = {
         users: false,
         academic_years: false,
         classes: true,
-        courses: true,
-        teacher_assignments: true,  // Manage tugas & nilai
-        teacher_exams: true,        // Manage ujian & soal
+        teacher_assignments: true,
+        teacher_exams: true,
+        admin_exams: false,
         exams: false,
         question_bank: false,
-        my_courses: false,
         my_results: false,
         notifications: true,
         reports: true,
         settings: false,
+        my_class: false,
+        student_assignments: false,
+        student_recap: false,
     },
     student: {
         dashboard: false,
-        student_dashboard: true,   // Student-specific home
+        student_dashboard: true,
         announcements: true,
         users: false,
         academic_years: false,
         classes: false,
-        courses: false,
         teacher_assignments: false,
         teacher_exams: false,
-        exams: false,
+        admin_exams: false,
+        exams: false,            // accessed via my-class, not sidebar
         question_bank: false,
-        my_courses: true,
-        my_results: true,
+        my_results: false,       // replaced by student_recap
         notifications: true,
         reports: false,
         settings: false,
+        my_class: true,
+        student_assignments: false, // accessed via my-class, not sidebar
+        student_recap: true,
     },
 };
 
@@ -113,7 +121,7 @@ export interface NavItem {
     feature: Feature;
 }
 
-const ALL_NAV_ITEMS: NavItem[] = [
+export const ALL_NAV_ITEMS: NavItem[] = [
     {
         name: "Dashboard",
         nameJa: "ダッシュボード",
@@ -157,13 +165,6 @@ const ALL_NAV_ITEMS: NavItem[] = [
         feature: "classes",
     },
     {
-        name: "Mata Pelajaran",
-        nameJa: "科目管理",
-        href: "/dashboard/courses",
-        icon: "GraduationCap",
-        feature: "courses",
-    },
-    {
         name: "Manajemen Tugas",
         nameJa: "課題管理",
         href: "/dashboard/teacher/assignments",
@@ -178,11 +179,11 @@ const ALL_NAV_ITEMS: NavItem[] = [
         feature: "teacher_exams",
     },
     {
-        name: "Ujian & Kuis",
+        name: "Manajemen Ujian",
         nameJa: "試験管理",
-        href: "/dashboard/exams",
+        href: "/dashboard/admin/exams",
         icon: "FileText",
-        feature: "exams",
+        feature: "admin_exams",
     },
     {
         name: "Bank Soal",
@@ -191,19 +192,20 @@ const ALL_NAV_ITEMS: NavItem[] = [
         icon: "Database",
         feature: "question_bank",
     },
+
     {
-        name: "Pelajaran Saya",
-        nameJa: "マイコース",
-        href: "/dashboard/my-courses",
-        icon: "BookMarked",
-        feature: "my_courses",
+        name: "Rekap Nilai Saya",
+        nameJa: "成績確認",
+        href: "/dashboard/students/my-recap",
+        icon: "BarChart2",
+        feature: "student_recap",
     },
     {
-        name: "Hasil Ujian",
-        nameJa: "成績確認",
-        href: "/dashboard/my-results",
-        icon: "BarChart2",
-        feature: "my_results",
+        name: "Kelas Saya",
+        nameJa: "マイクラス",
+        href: "/dashboard/students/my-class",
+        icon: "GraduationCap",
+        feature: "my_class",
     },
     {
         name: "Notifikasi",
@@ -213,9 +215,9 @@ const ALL_NAV_ITEMS: NavItem[] = [
         feature: "notifications",
     },
     {
-        name: "Laporan",
-        nameJa: "レポート",
-        href: "/dashboard/reports",
+        name: "Rekap Nilai",
+        nameJa: "成績確認",
+        href: "/dashboard/teacher/recap",
         icon: "PieChart",
         feature: "reports",
     },
@@ -225,6 +227,18 @@ const ALL_NAV_ITEMS: NavItem[] = [
         href: "/dashboard/settings",
         icon: "Settings",
         feature: "settings",
+    },
+    {
+        name: "Tugas Siswa",
+        href: "/dashboard/students/assignments",
+        icon: "ClipboardList",
+        feature: "student_assignments",
+    },
+    {
+        name: "Ujian Siswa",
+        href: "/dashboard/students/exams",
+        icon: "FileText",
+        feature: "exams",
     },
 ];
 
