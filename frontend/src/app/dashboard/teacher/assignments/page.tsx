@@ -16,10 +16,11 @@ import {
     MessageSquare,
     Paperclip,
     Eye,
-    BookOpen,
     AlertCircle,
     ArrowLeft,
-    GraduationCap
+    GraduationCap,
+    ChevronLeft,
+    BookOpen
 } from "lucide-react";
 
 const API = "http://localhost:8080/api/v1";
@@ -258,58 +259,59 @@ export default function TeacherAssignmentsPage() {
     // ── VIEW 1: CLASS LIST ──────────────────────────────────────────────────────────
     if (!selectedClass) {
         return (
-            <div className="max-w-5xl mx-auto space-y-6">
-                <div>
-                    <h1 className="text-2xl font-serif font-bold text-[#0D1B2A]">Daftar Kelas</h1>
-                    <p className="text-gray-400 text-sm mt-0.5">
-                        Pilih kelas untuk mengelola tugas.
-                    </p>
+            <div className="max-w-6xl mx-auto space-y-6 pb-20">
+                <div className="bg-white rounded-[32px] border border-gray-100 shadow-[0_8px_30px_-10px_rgba(0,0,0,0.05)] p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div>
+                        <h1 className="text-3xl font-serif font-black text-[#0D1B2A] mb-1 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-[#006D77]/10 flex items-center justify-center text-[#006D77]">
+                                <BookOpen size={20} />
+                            </div>
+                            Manajemen Tugas
+                        </h1>
+                        <p className="text-sm text-gray-400">Pilih kelas yang Anda ajar di bawah ini untuk mengelola tugas harian siswa.</p>
+                    </div>
                 </div>
-
-                {loadingClasses ? (
-                    <div className="flex justify-center py-20">
-                        <div className="w-6 h-6 border-2 border-[#006D77] border-t-transparent rounded-full animate-spin" />
-                    </div>
-                ) : classes.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-gray-100 shadow-sm gap-3">
-                        <BookOpen size={40} className="text-gray-200" />
-                        <div className="text-center">
-                            <p className="text-[#0D1B2A] font-semibold">Belum Ada Kelas</p>
-                            <p className="text-sm text-gray-500 mt-1 max-w-sm">Belum ada kelas yang terdaftar pada tahun ajaran ini. Silakan hubungi admin.</p>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {classes.map((c, i) => {
-                            const colors = ["from-[#006D77] to-[#4ECDC4]", "from-[#7B5EA7] to-[#b18fe0]", "from-[#E9A800] to-[#f7c948]", "from-[#E63946] to-[#f7887e]"];
-                            const bg = colors[i % colors.length];
-                            return (
-                                <div key={c.id}
-                                    onClick={() => openClass(c)}
-                                    className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-all group">
-                                    <div className={`h-20 bg-gradient-to-r ${bg} p-4 flex items-end relative overflow-hidden`}>
-                                        <h3 className="font-bold text-white text-lg relative z-10">{c.name}</h3>
-                                        <GraduationCap size={60} className="absolute -right-4 -bottom-4 text-white/10 rotate-12" />
-                                    </div>
-                                    <div className="p-4 flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-[#0D1B2A] font-bold text-xs">
-                                                {c.teacher?.name ? c.teacher.name[0].toUpperCase() : "G"}
+                
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden animate-in fade-in duration-500">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="border-b border-gray-50 bg-gray-50/50">
+                                <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Nama Kelas</th>
+                                <th className="text-right px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {loadingClasses ? (
+                                <tr>
+                                    <td colSpan={2} className="px-6 py-10 text-center"><div className="w-6 h-6 border-2 border-[#006D77] border-t-transparent rounded-full animate-spin mx-auto" /></td>
+                                </tr>
+                            ) : classes.length === 0 ? (
+                                <tr>
+                                    <td colSpan={2} className="px-6 py-10 text-center text-gray-400">Belum ada kelas terdaftar di tahun ajaran ini.</td>
+                                </tr>
+                            ) : classes.map(c => (
+                                <tr key={c.id} className="hover:bg-[#006D77]/5 transition-colors group">
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:text-[#006D77] group-hover:bg-white border border-gray-100 transition-colors">
+                                                <ClipboardList size={16} />
                                             </div>
-                                            <div>
-                                                <p className="text-xs text-gray-400">Pengajar</p>
-                                                <p className="text-sm font-semibold text-[#0D1B2A]">{c.teacher?.name || "Anda"}</p>
-                                            </div>
+                                            <span className="font-bold text-[#0D1B2A]">{c.name}</span>
                                         </div>
-                                        <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-50 group-hover:bg-[#006D77] group-hover:text-white transition-colors">
-                                            <ChevronRight size={16} />
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <button 
+                                            onClick={() => openClass(c)} 
+                                            className="inline-flex items-center gap-2 px-4 py-2 bg-[#006D77]/10 text-[#006D77] font-bold text-xs rounded-xl hover:bg-[#006D77] hover:text-white transition-colors"
+                                        >
+                                            Kelola Tugas
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         );
     }
@@ -444,16 +446,19 @@ export default function TeacherAssignmentsPage() {
 
     // ── VIEW 3: ASSIGNMENT LIST FOR A CLASS ─────────────────────────────────────────
     return (
-        <div className="max-w-5xl mx-auto space-y-6">
-            <div className="flex items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto space-y-6 pb-20">
+            <button onClick={closeClass} className="flex items-center gap-2 text-sm text-gray-400 hover:text-[#006D77] transition-colors mb-2">
+                <ChevronLeft size={16} /> Kembali ke daftar kelas
+            </button>
+
+            <div className="bg-white rounded-[32px] border border-gray-100 shadow-[0_8px_30px_-10px_rgba(0,0,0,0.05)] p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <div>
-                    <button onClick={closeClass} className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#006D77] transition-colors mb-2">
-                        <ArrowLeft size={16} /> Kembali ke daftar kelas
-                    </button>
-                    <h1 className="text-2xl font-serif font-bold text-[#0D1B2A]">{selectedClass.name}</h1>
-                    <p className="text-gray-400 text-sm mt-0.5">Kelola tugas untuk kelas ini.</p>
+                    <h1 className="text-3xl font-serif font-black text-[#0D1B2A] mb-1">
+                        Tugas Kelas: <span className="text-[#006D77]">{selectedClass.name}</span>
+                    </h1>
+                    <p className="text-sm text-gray-400">Kelola dan periksa tugas yang dikumpulkan siswa di kelas ini.</p>
                 </div>
-                <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg shadow-[#006D77]/20 hover:scale-105 transition-transform" style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}>
+                <button onClick={() => setShowCreate(true)} className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold text-white shadow-lg shadow-[#006D77]/20 hover:scale-105 active:scale-95 transition-all bg-[#006D77] w-full sm:w-auto shrink-0">
                     <Plus size={18} /> Buat Tugas Baru
                 </button>
             </div>

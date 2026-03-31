@@ -8,14 +8,21 @@ import (
 // ─── User ────────────────────────────────────────────────────────────────────
 // Roles: admin | teacher | student
 type User struct {
-	ID        int       `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name      string    `gorm:"not null"                json:"name"`
-	Email     string    `gorm:"unique;not null"         json:"email"`
-	Role      string    `gorm:"not null"                json:"role"`  // admin, teacher, student
-	Password  string    `gorm:"not null"                json:"password,omitempty"`
-	NIS       string    `                               json:"nis"`
-	Photo     string    `                               json:"photo"`
-	Active    bool      `gorm:"default:true"            json:"active"`
+	ID           int       `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name         string    `gorm:"not null"                json:"name"`
+	Email        string    `gorm:"unique;not null"         json:"email"`
+	Role         string    `gorm:"not null"                json:"role"`  // admin, teacher, student
+	Password     string    `gorm:"not null"                json:"password,omitempty"`
+	NIS          string    `                               json:"nis"`
+	Photo        string    `                               json:"photo"`
+	Active       bool      `gorm:"default:true"            json:"active"`
+	
+	PlaceOfBirth string    `gorm:"type:varchar(100)"       json:"place_of_birth"`
+	DateOfBirth  string    `gorm:"type:date"               json:"date_of_birth"`  // YYYY-MM-DD
+	Gender       string    `gorm:"type:varchar(10)"        json:"gender"`         // L / P
+	Phone        string    `gorm:"type:varchar(20)"        json:"phone"`
+	Address      string    `gorm:"type:text"               json:"address"`
+
 	CreatedAt time.Time `                               json:"created_at"`
 	UpdatedAt time.Time `                               json:"updated_at"`
 }
@@ -253,4 +260,57 @@ type GradeRecap struct {
 	Notes           string    `gorm:"type:text"                              json:"notes"`
 	TeacherID       int       `gorm:"not null"                               json:"teacher_id"`
 	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+// ─── AppSetting ─────────────────────────────────────────────────────────────
+// Stores global configuration key-pair values.
+// Keys: lpk_name, lpk_logo, lpk_address, lpk_phone, lpk_motto, min_pass_score, exam_max_attempt_default, allow_student_register, maintenance_mode
+type AppSetting struct {
+	ID        int       `gorm:"primaryKey;autoIncrement" json:"id"`
+	Key       string    `gorm:"uniqueIndex;not null"     json:"key"`   // e.g. "lpk_name"
+	Value     string    `gorm:"type:text"                json:"value"` // e.g. "LPK SO Mori Centre"
+	CreatedAt time.Time `                                json:"created_at"`
+	UpdatedAt time.Time `                                json:"updated_at"`
+}
+
+// ─── LearningMaterial (Modul Materi) ──────────────────────────────────────────
+// Instructional content like PDFs or Video links.
+type LearningMaterial struct {
+	ID          int       `gorm:"primaryKey;autoIncrement" json:"id"`
+	ClassID     int       `gorm:"not null"                 json:"class_id"`
+	Class       Class     `gorm:"foreignKey:ClassID"       json:"class,omitempty"`
+	Title       string    `gorm:"not null"                 json:"title"`
+	Description string    `gorm:"type:text"                json:"description"`
+	Type        string    `gorm:"not null"                 json:"type"` // "pdf" | "video" | "link"
+	URL         string    `gorm:"not null"                 json:"url"`  // internal file url or external link
+	CreatedAt   time.Time `                                json:"created_at"`
+	UpdatedAt   time.Time `                                json:"updated_at"`
+}
+
+// ─── Question Bank ────────────────────────────────────────────────────────────
+// Library of reusable questions that can be imported into Exams.
+type QuestionBank struct {
+	ID          int            `gorm:"primaryKey;autoIncrement" json:"id"`
+	Title       string         `gorm:"not null"                 json:"title"`
+	Description string         `gorm:"type:text"                json:"description"`
+	CreatorID   *int           `                                json:"creator_id"`
+	Creator     *User          `gorm:"foreignKey:CreatorID"     json:"creator,omitempty"`
+	CreatedAt   time.Time      `                                json:"created_at"`
+	UpdatedAt   time.Time      `                                json:"updated_at"`
+	Questions   []BankQuestion `gorm:"foreignKey:BankID;constraint:OnDelete:CASCADE" json:"questions,omitempty"`
+}
+
+// ─── Bank Question ────────────────────────────────────────────────────────────
+// The actual question stored inside a Question Bank.
+type BankQuestion struct {
+	ID           int             `gorm:"primaryKey;autoIncrement" json:"id"`
+	BankID       int             `gorm:"not null"                 json:"bank_id"`
+	Bank         QuestionBank    `gorm:"foreignKey:BankID"        json:"bank,omitempty"`
+	OrderNum     int             `gorm:"default:0"                json:"order_num"`
+	QuestionType string          `gorm:"not null"                 json:"question_type"` // multiple_choice | essay | file_upload
+	Text         string          `gorm:"type:text;not null"       json:"text"`
+	Points       int             `gorm:"default:1"                json:"points"`
+	Options      json.RawMessage `gorm:"type:jsonb"               json:"options"` // raw JSON
+	CreatedAt    time.Time       `                                json:"created_at"`
+	UpdatedAt    time.Time       `                                json:"updated_at"`
 }

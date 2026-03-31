@@ -159,25 +159,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
                 {/* Logo area */}
                 <div
-                    className="flex items-center h-[60px] px-4 overflow-hidden shrink-0"
+                    className="flex items-center h-[70px] px-5 pt-4 overflow-hidden shrink-0"
                     style={{ borderBottom: "1px solid var(--sidebar-border)" }}
                 >
                     {collapsed ? (
                         <div
-                            className="w-8 h-8 rounded-lg flex items-center justify-center mx-auto shrink-0"
+                            className="w-8 h-8 rounded-lg flex items-center justify-center mx-auto shrink-0 mb-3"
                             style={{ background: "var(--accent)", opacity: 0.9 }}
                         >
                             <span className="text-white font-bold text-sm">M</span>
                         </div>
                     ) : (
-                        <div
-                            className="rounded-xl px-3 py-2 flex items-center"
-                            style={{ background: "rgba(255,255,255,0.07)" }}
-                        >
+                        <div className="flex items-center mb-3">
                             <Image
                                 src="/logo.png"
                                 alt="LPK Mori"
-                                width={90}
+                                width={95}
                                 height={28}
                                 className="object-contain"
                             />
@@ -185,23 +182,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     )}
                 </div>
 
-                {/* User info */}
-                {!collapsed && (
-                    <div
-                        className="mx-3 mt-4 mb-2 px-3 py-2.5 rounded-xl"
-                        style={{ background: "var(--sidebar-surface)", border: "1px solid var(--sidebar-border)" }}
-                    >
-                        <p className="text-xs font-medium truncate" style={{ color: "var(--sidebar-text)" }}>
-                            {userName}
-                        </p>
-                        <span
-                            className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                            style={{ color: roleMeta.color, background: roleMeta.bg }}
-                        >
-                            {roleMeta.label} · {roleMeta.labelJa}
-                        </span>
-                    </div>
-                )}
+                {/* User info - Removed as requested */}
 
                 {/* Nav */}
                 <nav className="flex-1 py-3 px-2.5 space-y-0.5 overflow-y-auto">

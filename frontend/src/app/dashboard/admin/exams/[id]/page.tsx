@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
     FileText, Plus, Trash2, X, ChevronLeft, Clock, AlertCircle,
-    CheckSquare, AlignLeft, Paperclip, Users, Settings, Save, Edit3, CheckCircle
+    CheckSquare, AlignLeft, Paperclip, Users, Settings, Save, Edit3, CheckCircle,
+    Database, Upload, Package
 } from "lucide-react";
 
 const API = "http://localhost:8080/api/v1";
@@ -118,6 +119,15 @@ export default function ExamManagePage() {
     const [studentAnswers, setStudentAnswers] = useState<ExamAnswer[]>([]);
     const [gradingLoading, setGradingLoading] = useState(false);
     const [loadingStudents, setLoadingStudents] = useState(false);
+
+    // Import from Bank Soal
+    const [showImportBank, setShowImportBank] = useState(false);
+    interface QuestionBankItem { id: number; title: string; description: string; questions: unknown[] }
+    const [banks, setBanks] = useState<QuestionBankItem[]>([]);
+    const [loadingBanks, setLoadingBanks] = useState(false);
+    const [selectedBankId, setSelectedBankId] = useState<number | null>(null);
+    const [importingBank, setImportingBank] = useState(false);
+    const [importResult, setImportResult] = useState("");
 
     const fetchExam = useCallback(async () => {
         setLoading(true);
@@ -279,6 +289,33 @@ export default function ExamManagePage() {
         if (selectedStudent) fetchStudentAnswers(selectedStudent.id);
     };
 
+    const openImportBank = async () => {
+        setImportResult(""); setSelectedBankId(null);
+        setShowImportBank(true);
+        setLoadingBanks(true);
+        try {
+            const r = await fetch(`${API}/question-banks`, { headers: { Authorization: `Bearer ${token}` } });
+            const j = await r.json();
+            setBanks(j.data ?? []);
+        } finally { setLoadingBanks(false); }
+    };
+
+    const handleImportBank = async () => {
+        if (!selectedBankId || !id) return;
+        setImportingBank(true); setImportResult("");
+        try {
+            const r = await fetch(`${API}/question-banks/${selectedBankId}/import-to-exam/${id}`, {
+                method: "POST", headers: { Authorization: `Bearer ${token}` },
+            });
+            const j = await r.json();
+            if (!r.ok) throw new Error(j.error ?? "Gagal mengimpor");
+            setImportResult(j.message ?? "Berhasil diimpor!");
+            fetchExam();
+        } catch (err: unknown) {
+            setImportResult("❌ " + (err instanceof Error ? err.message : "Error"));
+        } finally { setImportingBank(false); }
+    };
+
     if (loading) return <div className="p-10 flex justify-center"><div className="animate-spin w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full" /></div>;
     if (!exam) return <div className="p-10 text-center">Ujian tidak ditemukan.</div>;
 
@@ -322,6 +359,9 @@ export default function ExamManagePage() {
                         </button>
                         <button onClick={() => setShowBulkAdd(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border-2 border-[#7B5EA7] text-[#7B5EA7] bg-white hover:bg-purple-50 transition-colors shadow-sm">
                             <Plus size={18} /> Buat Banyak Pilihan Ganda
+                        </button>
+                        <button onClick={openImportBank} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-colors shadow-sm">
+                            <Database size={16} /> Import dari Bank Soal
                         </button>
                     </div>
 
@@ -600,6 +640,56 @@ export default function ExamManagePage() {
                             <button type="submit" disabled={addQLoading} className="flex-1 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg, #7B5EA7, #5a3d85)" }}>{addQLoading ? "Menyimpan..." : "Simpan Soal"}</button>
                         </div>
                     </form>
+                </Modal>
+            )}
+
+            {/* IMPORT FROM BANK SOAL MODAL */}
+            {showImportBank && (
+                <Modal title="Import Soal dari Bank Soal" onClose={() => setShowImportBank(false)}>
+                    <div className="space-y-4">
+                        <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+                            <p className="text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
+                                <Database size={13} /> Pilih paket soal dari bank untuk diimpor ke ujian ini
+                            </p>
+                        </div>
+                        {loadingBanks ? (
+                            <div className="flex justify-center py-6"><div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>
+                        ) : banks.length === 0 ? (
+                            <div className="text-center py-8 text-sm text-gray-400">
+                                <Package size={32} className="mx-auto mb-2 text-gray-200" />
+                                Belum ada bank soal. Buat terlebih dahulu di menu <strong>Bank Soal</strong>.
+                            </div>
+                        ) : (
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                                {banks.map(bank => (
+                                    <label key={bank.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-colors ${selectedBankId === bank.id ? "border-emerald-400 bg-emerald-50" : "border-gray-100 hover:border-gray-200 bg-white"}`}>
+                                        <input type="radio" name="bank" checked={selectedBankId === bank.id} onChange={() => setSelectedBankId(bank.id)} className="accent-emerald-600" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-bold text-sm text-[#0D1B2A]">{bank.title}</p>
+                                            {bank.description && <p className="text-xs text-gray-400 truncate">{bank.description}</p>}
+                                        </div>
+                                        <span className="text-xs text-gray-400 shrink-0">{bank.questions?.length ?? 0} soal</span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+                        {importResult && (
+                            <div className={`px-3 py-2.5 rounded-xl text-xs font-semibold ${importResult.startsWith("❌") ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-700"}`}>
+                                {importResult}
+                            </div>
+                        )}
+                        <div className="flex gap-3 pt-2">
+                            <button onClick={() => setShowImportBank(false)} className="px-4 py-2.5 text-sm text-gray-500 border border-gray-100 rounded-xl hover:bg-gray-50">Tutup</button>
+                            <button
+                                onClick={handleImportBank}
+                                disabled={!selectedBankId || importingBank}
+                                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                            >
+                                <Upload size={15} />
+                                {importingBank ? "Mengimpor..." : "Import ke Ujian Ini"}
+                            </button>
+                        </div>
+                    </div>
                 </Modal>
             )}
 

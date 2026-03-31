@@ -133,24 +133,23 @@ export default function AcademicPage() {
     const activeYear = years.find((y) => y.is_active);
 
     return (
-        <div className="space-y-6 max-w-5xl mx-auto">
+        <div className="max-w-6xl mx-auto space-y-6 pb-20">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="bg-white rounded-[32px] border border-gray-100 shadow-[0_8px_30px_-10px_rgba(0,0,0,0.05)] p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <div>
-                    <h1 className="text-2xl font-serif font-bold text-[#0D1B2A]">
+                    <h1 className="text-3xl font-serif font-black text-[#0D1B2A] mb-1 flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#006D77]/10 flex items-center justify-center text-[#006D77]">
+                            <BookOpen size={20} />
+                        </div>
                         Tahun Ajaran
                     </h1>
-                    <p className="text-gray-400 text-sm mt-0.5">
-                        Kelola tahun ajaran — hanya satu yang boleh aktif sekaligus
-                    </p>
+                    <p className="text-sm text-gray-400">Kelola master tahun ajaran dan pastikan hanya ada satu tahun ajaran yang aktif sekaligus.</p>
                 </div>
                 <button
                     onClick={() => setShowCreate(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg shadow-[#006D77]/25"
-                    style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}
+                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#006D77] text-white font-bold text-sm shadow-lg shadow-[#006D77]/20 transition-all hover:scale-105 active:scale-95 w-full sm:w-auto shrink-0"
                 >
-                    <Plus size={16} />
-                    Tambah Tahun Ajaran
+                    <Plus size={18} /> Tambah Tahun Ajaran
                 </button>
             </div>
 

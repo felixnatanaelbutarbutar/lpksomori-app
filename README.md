@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![LPK SO Mori Centre](./logo.png)
+![LPK SO Mori Centre](./frontend/public/logo.png)
 
 **Platform manajemen akademik bilingual (🇮🇩 Indonesia · 🇯🇵 Jepang) untuk Lembaga Pelatihan Kerja SO Mori Centre**
 
@@ -274,137 +274,131 @@ Akun super admin dibuat otomatis saat pertama kali server dinyalakan:
 http://localhost:8080/api/v1
 ```
 
-### Auth
-| Method | Endpoint | Body | Keterangan |
-|--------|----------|------|------------|
-| `POST` | `/auth/login` | `{email, password}` | Login, returns JWT token |
-| `POST` | `/auth/register` | `{email*, password*, role*, name?, nis?, active?}` | Buat akun baru |
-
-### Pengguna
-| Method | Endpoint | Keterangan |
-|--------|----------|------------|
-| `GET` | `/users?role=teacher\|student` | Daftar pengguna (filter opsional) |
-| `GET` | `/users/:id` | Detail satu pengguna |
-| `PATCH` | `/users/:id` | Update pengguna |
-| `DELETE` | `/users/:id` | Hapus pengguna |
-
-### Tahun Ajaran
-| Method | Endpoint | Keterangan |
-|--------|----------|------------|
-| `GET` | `/academic-years` | Daftar semua tahun ajaran |
-| `GET` | `/academic-years/active` | Tahun ajaran yang sedang aktif |
-| `POST` | `/academic-years` | Buat tahun ajaran + 5 kelas default |
-| `PATCH` | `/academic-years/:id/activate` | Aktifkan (hanya 1 yang bisa aktif) |
-| `DELETE` | `/academic-years/:id` | Hapus (tidak bisa hapus yang aktif) |
-
-### Kelas
-| Method | Endpoint | Keterangan |
-|--------|----------|------------|
-| `GET` | `/classes?academic_year_id=X` | Daftar kelas |
-| `POST` | `/classes` | Tambah kelas (auto-link ke tahun aktif) |
-| `PATCH` | `/classes/:id` | Rename kelas |
-| `DELETE` | `/classes/:id` | Hapus kelas |
-| `GET` | `/classes/:id/enrollments` | Daftar siswa di kelas |
-| `POST` | `/classes/:id/enrollments` | Daftarkan siswa `{user_id}` |
-| `DELETE` | `/classes/:id/enrollments/:user_id` | Keluarkan siswa dari kelas |
-
-### Mata Pelajaran
-> ⚠️ `POST`, `PATCH`, `DELETE` memerlukan `Authorization: Bearer <token>` dengan role `teacher`
-
+### Auth & Pengguna
 | Method | Endpoint | Auth | Keterangan |
 |--------|----------|------|------------|
-| `GET` | `/courses?class_id=X` | — | Daftar mata pelajaran + info guru |
-| `POST` | `/courses` | 🔒 Teacher | Buat (`teacher_id` otomatis dari JWT) |
-| `PATCH` | `/courses/:id` | 🔒 Teacher (owner) | Rename |
-| `DELETE` | `/courses/:id` | 🔒 Teacher (owner) | Hapus |
+| `POST` | `/auth/login` | — | Login, returns JWT token |
+| `POST` | `/auth/register` | — | Buat akun baru dengan atribut *Profile Lengkap* (Tanggal Lahir, TTL, dsb) |
+| `GET`  | `/users?role=…` | ✅ Admin | Daftar pengguna (filter opsional) |
+| `GET`  | `/users/birthdays-today` | ✅ All | Mendapatkan daftar pengguna yang berulang tahun pada hari ini |
+| `GET`  | `/users/:id` | ✅ All | Detail pengguna |
+| `PATCH`| `/users/:id` | ✅ Admin | Update pengguna (termasuk update identitas TTL & Biodata) |
+| `DELETE` | `/users/:id` | ✅ Admin | Hapus pengguna |
+| `POST` | `/users/:id/photo` | ✅ All | Mengubah/upload foto profil |
+| `PATCH`| `/users/:id/password` | ✅ Admin | Reset password pengguna oleh Admin |
 
-### Health Check
-```
-GET /api/v1/ping  →  {"message": "pong", "status": "LPK Mori API is live"}
-```
+### Tahun Ajaran & Kelas
+| Method | Endpoint | Auth | Keterangan |
+|--------|----------|------|------------|
+| `GET`  | `/academic-years`, `/active` | ✅ All | Daftar semua / aktif tahun ajaran |
+| `POST`, `PATCH`, `DELETE` | `/academic-years…` | ✅ Admin| Manajemen tahun ajaran |
+| `GET`  | `/classes?academic_year_id=…` | ✅ All | Daftar kelas |
+| `POST`, `PATCH`, `DELETE` | `/classes`, `/classes/:id` | ✅ Admin| CRUD Kelas |
+| `GET`  | `/classes/:id/enrollments` | ✅ All | Daftar siswa di kelas |
+| `POST` | `/classes/:id/enrollments` | ✅ Admin | Daftarkan siswa ke kelas |
+| `DELETE` | `/classes/:id/enrollments/:user_id`| ✅ Admin | Hapus siswa dari kelas |
+| `GET`  | `/classes/:id/recap` | 🔒 Teacher| Melihat Rekap Nilai Siswa (Daftar Kelas & Siswa) |
+| `POST` | `/classes/:id/recap/:student_id` | 🔒 Teacher| Menyimpan atau edit Rekap Evaluasi/Nilai Akhir Siswa |
+
+### Mata Pelajaran (Courses) & Tugas (Assignments)
+| Method | Endpoint | Auth | Keterangan |
+|--------|----------|------|------------|
+| `GET`  | `/courses?class_id=X` | ✅ All | Daftar pelajaran |
+| `POST`, `PATCH`, `DELETE` | `/courses…` | 🔒 Teacher | Manajemen pelajaran (hanya pembuat) |
+| `GET`  | `/assignments?class_id=X` | ✅ All | Daftar tugas |
+| `POST`, `PATCH`, `DELETE` | `/assignments` | 🔒 Teacher | Manajemen tugas dengan *file upload* |
+| `POST` | `/assignments/:id/submissions` | 🎓 Student | Siswa mensubmit tugas |
+| `GET`  | `/assignments/submissions/my` | 🎓 Student | Melihat semua tugas yang di-*submit* oleh siswa yang login |
+| `PATCH`| `/assignments/submissions/:id/grade`| 🔒 Teacher | Memberikan nilai (grade) kepada submission siswa |
+
+### Manajemen Ujian (Exams) & Bank Soal
+| Method | Endpoint | Auth | Keterangan |
+|--------|----------|------|------------|
+| `GET`, `POST`, `PATCH`, `DELETE` | `/question-banks…` | 🔒 Teacher/Admin | CRUD Koleksi/Paket Soal di Bank Soal |
+| `POST` | `/question-banks/:id/questions` | 🔒 Teacher | Tambah *question* (soal-soal) langsung ke paket Bank Soal |
+| `POST` | `/question-banks/:id/import-to-exam/:exam_id` | 🔒 Teacher | Import semua soal dari Bank Soal ke dalam Ujian Tertentu |
+| `GET`, `POST`, `PATCH`, `DELETE` | `/exams` | 🔒 Teacher | CRUD Manajemen Ujian |
+| `GET`, `POST`, `DELETE` | `/exams/:id/questions…` | 🔒 Teacher | Tambah/Lihat/Hapus soal dan Opsi di dalam Ujian |
+| `GET`  | `/exams/:id/start` | 🎓 Student | Siswa memulai ujian (Timer berjalan di frontend) |
+| `POST` | `/exams/:id/submit` | 🎓 Student | Siswa mengirimkan jawaban ujian (Auto-grading) |
+| `GET`  | `/exams/:id/student-attempts` | 🔒 Teacher | Guru melihat hasil ujian dan riwayat peserta yang sudah mengerjakan |
+
+### Pengumuman & Pengaturan
+| Method | Endpoint | Auth | Keterangan |
+|--------|----------|------|------------|
+| `GET` | `/announcements` | ✅ All | Lihat pengumuman |
+| `POST`, `PATCH`, `DELETE` | `/announcements` | ✅ Admin | Manajemen pengumuman |
+| `GET` | `/dashboard/stats` | ✅ All | Statistik dashboard (*Top Achiever*, Distribusi Kelas) |
+| `GET` | `/dashboard/student-stats` | 🎓 Student | Data progress belajar dashboard (*Assignments Pending*, Kelulusan) |
 
 ---
 
-## 🗄️ Skema Database
+## 🗄️ Skema Database (Versi Lanjutan)
 
-```
+Berikut adalah struktur entitas utama setelah semua fitur yang ada dikembangkan:
+
+```text
 users
 ├── id (PK, IDENTITY)
-├── name
-├── email (unique)
-├── password (bcrypt)
-├── role (admin | teacher | student)
-├── nis
-├── photo
-└── active
+├── name, email (unique), password (bcrypt), role (admin|teacher|student)
+├── nis, photo, active
+└── place_of_birth, date_of_birth, gender, phone, address (Profile Lengkap)
 
 academic_years
 ├── id (PK, IDENTITY)
 ├── year_range (e.g. "2025/2026")
 └── is_active (hanya satu yang true)
 
-classes
-├── id (PK, IDENTITY)
-├── academic_year_id (FK → academic_years)
-├── name
-└── level (1-6)
+classes & class_enrollments
+├── classes: id, academic_year_id, name, level, teacher_id
+└── class_enrollments (Many-to-Many): class_id ↔ user_id
 
-class_enrollments          ← Junction table: siswa ↔ kelas
-├── id (PK, IDENTITY)
-├── class_id (FK → classes)
-├── user_id (FK → users)
-├── enrolled_at
-└── UNIQUE(class_id, user_id)
+courses & assignments & submissions
+├── courses: id, class_id, teacher_id, name
+├── assignments: id, class_id, teacher_id, title, description, file_url, due_date
+└── assignment_submissions: id, assignment_id, student_id, file_url, score, graded_at
 
-courses
-├── id (PK, IDENTITY)
-├── class_id (FK → classes)
-├── teacher_id (FK → users, nullable)
-└── name
+question_banks (Bank Soal) & question_bank_items
+├── question_banks: id, title, description, teacher_id
+└── question_bank_items: id, bank_id, text, options (JSONB), correct_option_index
 
-course_activities
-├── id (PK, IDENTITY)
-├── course_id (FK → courses)
-├── title
-├── type (quiz | assignment | material)
-└── description
+exams (Ujian) & exam_questions
+├── exams: id, class_id, teacher_id, title, description, duration_minutes, is_active
+└── exam_questions: id, exam_id, text, options (JSONB), correct_option_index
 
-questions
-├── id (PK, IDENTITY)
-├── activity_id (FK → course_activities)
-└── text
+exam_attempts (Percobaan Ujian Siswa)
+├── id, exam_id, student_id, start_time, end_time
+└── score, answers (JSONB)
 
-question_options
+student_recaps (Rekapitulasi Nilai Evaluasi Tahunan)
 ├── id (PK, IDENTITY)
-├── question_id (FK → questions)
-├── text
-└── is_correct
+├── class_id, student_id (Unique per kelas)
+├── status (Lulus / Tidak Lulus)
+└── final_score, notes, teacher_id, created_at
 
-student_answers
-├── id (PK, IDENTITY)
-├── student_id (FK → users)
-├── question_id (FK → questions)
-└── option_id (FK → question_options)
+announcements
+├── id, title, content (HTML Rich Text), author_id, created_at
 ```
 
 ---
 
 ## 🔒 Role & Hak Akses
 
-| Fitur | Admin | Guru | Siswa |
+Tabel berikut dirangkum berdasarkan middleware API dan UI Permission Dashboard:
+
+| Fitur Utama Sistem | Admin | Guru (先生) | Siswa (学生) |
 |-------|:-----:|:----:|:-----:|
-| Dashboard | ✅ | ✅ | ✅ |
-| Manajemen Pengguna | ✅ | ❌ | ❌ |
-| Tahun Ajaran | ✅ | ❌ | ❌ |
-| Manajemen Kelas | ✅ | ✅ | ❌ |
-| Mata Pelajaran (lihat) | ✅ | ✅ | ✅ |
-| Mata Pelajaran (tambah/edit/hapus) | ❌ | ✅ (milik sendiri) | ❌ |
-| Bank Soal | ✅ | ✅ | ❌ |
-| Ujian & Kuis | ✅ | ✅ | ❌ |
-| Pelajaran Saya | ❌ | ❌ | ✅ |
-| Hasil Ujian | ❌ | ❌ | ✅ |
-| Laporan | ✅ | ✅ | ❌ |
-| Pengaturan | ✅ | ❌ | ❌ |
+| **Dashboard Terpusat** & Notif Ulang Tahun | ✅ | ✅ | ✅ (UI khusus siswa) |
+| **Manajemen Pengguna** (Tambah data lengkap) | ✅ | ❌ | ❌ |
+| **Tahun Ajaran & Kelas** | ✅ | ✅ (Melihat) | ✅ (Melihat) |
+| **Pelajaran Saya** | ✅ | ✅ | ✅ |
+| **Tugas & Submission** (Nilai/Buat) | ❌ | ✅ | ✅ (Kumpul) |
+| **Manajemen Bank Soal** (Import) | ✅ | ✅ | ❌ |
+| **Pembuatan Ujian & Kuis** | ✅ | ✅ | ❌ |
+| **Mengerjakan Ujian** (Auto-grading) | ❌ | ❌ | ✅ |
+| **Rekap Nilai Siswa** (Grade Recap) | ❌ | ✅ | ❌ |
+| **Pengumuman / Mading Elektronik** | ✅ | ❌ | ❌ |
+| **Pengaturan Situs** | ✅ | ❌ | ❌ |
 
 ---
 
@@ -467,6 +461,7 @@ ports:
 
 Akun admin dibuat otomatis saat backend pertama kali start. Tunggu beberapa detik setelah container backend berjalan, lalu coba login kembali.
 
+docker compose up --build -d
 ---
 
 ## 📄 Lisensi
@@ -479,3 +474,4 @@ Proyek ini dikembangkan untuk keperluan internal LPK SO Mori Centre.
   <p>Dibuat dengan ❤️ untuk LPK SO Mori Centre</p>
   <p><em>「学ぶことは一生の宝である」— Belajar adalah harta seumur hidup</em></p>
 </div>
+

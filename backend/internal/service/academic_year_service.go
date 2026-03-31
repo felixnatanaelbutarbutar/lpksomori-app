@@ -114,6 +114,11 @@ func (s *academicYearService) CreateAcademicYear(ctx context.Context, yearRange 
 	if err != nil {
 		return nil, err
 	}
+
+	// Reload the fully-populated record (including DB-generated created_at / updated_at)
+	if err := s.db.WithContext(ctx).Preload("Classes").First(newYear, newYear.ID).Error; err != nil {
+		return nil, err
+	}
 	return newYear, nil
 }
 

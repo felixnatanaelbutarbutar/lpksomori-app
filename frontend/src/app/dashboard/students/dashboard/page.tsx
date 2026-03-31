@@ -11,6 +11,8 @@ import {
     ChevronRight,
     FileText,
     Layers,
+    PartyPopper,
+    CalendarDays
 } from "lucide-react";
 import Link from "next/link";
 
@@ -71,6 +73,8 @@ export default function StudentDashboardPage() {
     const [loading, setLoading] = useState(true);
     const [userName, setUserName] = useState("");
     const [filter, setFilter] = useState<"all" | "pending" | "submitted">("all");
+    const [now, setNow] = useState("");
+    const [birthdays, setBirthdays] = useState<{ id: number; name: string; role: string }[]>([]);
 
     const token = typeof window !== "undefined" ? localStorage.getItem("mori_token") ?? "" : "";
 
@@ -85,15 +89,38 @@ export default function StudentDashboardPage() {
         } finally {
             setLoading(false);
         }
+
+        // Fetch birthdays
+        fetch(`${API}/users/birthdays-today`, {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.data) {
+                setBirthdays(data.data);
+            }
+        })
+        .catch(() => {});
     }, [token]);
 
     useEffect(() => {
         fetchDashboard();
+        const d = new Date();
+        setNow(d.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }));
         try {
             const u = JSON.parse(localStorage.getItem("mori_user") ?? "{}");
             setUserName(u.name || u.email || "Siswa");
         } catch { }
     }, [fetchDashboard]);
+
+    const firstName = userName.split(" ")[0];
+    const greeting = (() => {
+        const h = new Date().getHours();
+        if (h < 11) return "Selamat pagi";
+        if (h < 15) return "Selamat siang";
+        if (h < 18) return "Selamat sore";
+        return "Selamat malam";
+    })();
 
     const pendingTasks = data?.pending_tasks ?? [];
     const filtered = pendingTasks.filter((t) => {
@@ -115,31 +142,50 @@ export default function StudentDashboardPage() {
     }
 
     return (
-        <div className="space-y-8 max-w-5xl mx-auto">
-            {/* ── Greeting ── */}
-            <div className="relative overflow-hidden rounded-2xl p-6"
-                style={{ background: "linear-gradient(135deg, #0D1B2A 0%, #006D77 100%)" }}>
-                <div className="relative z-10">
-                    <p className="text-[#4ECDC4] text-sm font-medium mb-1">Selamat belajar 👋</p>
-                    <h1 className="text-2xl font-serif font-bold text-white">{userName}</h1>
-                    <p className="text-white/60 text-sm mt-1">
-                        Kamu terdaftar di{" "}
-                        <span className="font-semibold text-white">
-                            {data?.enrollments?.length ?? 0} kelas
-                        </span>{" "}
-                        dengan{" "}
-                        <span className="font-semibold text-white">
-                            {pendingCount} tugas
-                        </span>{" "}
-                        yang belum diselesaikan
-                    </p>
+        <div className="space-y-8 max-w-5xl mx-auto pb-10">
+            {/* ── Greeting Header ── */}
+            <div className="relative overflow-hidden rounded-3xl p-7 text-white shadow-sm mx-2 sm:mx-0 bg-[#0D1B2A]">
+                <div className="absolute right-0 top-0 w-64 h-64 rounded-full opacity-10 bg-white blur-3xl translate-x-1/3 -translate-y-1/3" />
+                <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <p className="text-white/80 text-xs font-semibold uppercase tracking-widest mb-1">{greeting}</p>
+                        <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: "var(--font-serif)" }}>
+                            {firstName} <span className="animate-bounce inline-block">👋</span>
+                        </h1>
+                        <p className="text-white/90 text-sm">
+                            Kamu terdaftar di <span className="font-bold">{data?.enrollments?.length ?? 0} kelas</span> dengan <span className="font-bold">{pendingCount} tugas</span> yang belum diselesaikan.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-2 rounded-full text-xs font-medium border border-white/10 shrink-0">
+                        <CalendarDays size={14} /> {now}
+                    </div>
                 </div>
-                {/* Decoration */}
-                <div className="absolute right-6 top-4 w-24 h-24 rounded-full opacity-10"
-                    style={{ background: "#4ECDC4" }} />
-                <div className="absolute right-16 bottom-2 w-14 h-14 rounded-full opacity-10"
-                    style={{ background: "#E9A800" }} />
             </div>
+
+            {/* ── Birthday Notification Banner ── */}
+            {birthdays.length > 0 && (
+                <div className="bg-white border border-pink-100 rounded-3xl p-5 sm:px-6 shadow-sm flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left animate-in fade-in slide-in-from-top-4 duration-500 mx-2 sm:mx-0">
+                    <div className="w-12 h-12 rounded-full bg-pink-50 flex items-center justify-center shrink-0">
+                        <img src="/icons/birthday-cake.png" alt="Cake" className="w-7 h-7 object-contain" />
+                    </div>
+                    <div className="flex-1">
+                            <h3 className="text-[#0D1B2A] font-bold text-base flex items-center justify-center sm:justify-start gap-2">
+                                Hari ini ada yang berulang tahun! 🎂
+                            </h3>
+                            <p className="text-sm text-gray-600 mt-1">
+                                Selamat ulang tahun kepada:{" "}
+                                <span className="font-semibold text-purple-700">
+                                    {birthdays.map((b, i) => (
+                                        <span key={b.id}>
+                                            {b.name} <span className="text-xs font-normal text-gray-400">({b.role === "teacher" ? "Guru" : "Siswa"})</span>
+                                            {i < birthdays.length - 1 ? ", " : ""}
+                                        </span>
+                                    ))}
+                                </span>
+                            </p>
+                        </div>
+                </div>
+            )}
 
             {/* ── Summary Cards ── */}
             <div className="grid grid-cols-3 gap-4">
@@ -147,34 +193,33 @@ export default function StudentDashboardPage() {
                     {
                         label: "Kelas Diikuti",
                         value: data?.enrollments?.length ?? 0,
-                        icon: <Layers size={18} />,
-                        color: "from-[#006D77] to-[#4ECDC4]",
+                        icon: <Layers size={20} className="text-[#006D77]" />,
+                        bg: "bg-[#006D77]/10",
                     },
                     {
                         label: "Tugas Belum Dikumpul",
                         value: pendingCount,
-                        icon: <ClipboardList size={18} />,
-                        color: pendingCount > 0 ? "from-rose-500 to-pink-400" : "from-emerald-500 to-teal-400",
+                        icon: <ClipboardList size={20} className={pendingCount > 0 ? "text-rose-500" : "text-[#006D77]"} />,
+                        bg: pendingCount > 0 ? "bg-rose-50" : "bg-[#006D77]/10",
                     },
                     {
                         label: "Sudah Dikumpul",
                         value: submittedCount,
-                        icon: <CheckCircle2 size={18} />,
-                        color: "from-[#7B5EA7] to-[#b18fe0]",
+                        icon: <CheckCircle2 size={20} className="text-emerald-500" />,
+                        bg: "bg-emerald-50",
                     },
                 ].map((s) => (
                     <div
                         key={s.label}
-                        className="rounded-2xl p-4 text-white shadow-md"
-                        style={{ background: `linear-gradient(135deg, ${s.color.replace("from-", "").split(" to-")[0]}, ${s.color.split("to-")[1]})` }}
+                        className="rounded-2xl p-5 bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
                     >
                         <div className="flex items-center justify-between">
-                            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.bg}`}>
                                 {s.icon}
                             </div>
-                            <span className="text-3xl font-bold">{s.value}</span>
+                            <span className="text-3xl font-black text-[#0D1B2A]">{s.value}</span>
                         </div>
-                        <p className="text-sm text-white/80 mt-3 font-medium">{s.label}</p>
+                        <p className="text-sm text-gray-500 mt-4 font-semibold">{s.label}</p>
                     </div>
                 ))}
             </div>

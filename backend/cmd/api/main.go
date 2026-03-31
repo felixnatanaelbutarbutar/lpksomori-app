@@ -53,10 +53,15 @@ func main() {
 		&models.Announcement{},
 		&models.GradeRecap{},
 		&models.ExamSubmission{},
+		&models.AppSetting{},
+		&models.LearningMaterial{},
+		&models.QuestionBank{},
+		&models.BankQuestion{},
 	)
 
-	// Seed default users on first startup
+	// Seed default users and settings on start
 	seedUsers(db)
+	seedSettings(db)
 
 	// Initialize Services
 	academicSvc := service.NewAcademicYearService(db)
@@ -84,7 +89,138 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"message": "pong", "status": "LPK Mori API is live"})
 		})
 
-		// ─── Academic Year CRUD ──────────────────────────────────────────────────
+		// ─── App Settings (Super Admin) ──────────────────────────────────────────
+		api.GET("/settings", func(c *gin.Context) {
+			var settings []models.AppSetting
+			db.Find(&settings)
+			c.JSON(http.StatusOK, gin.H{"data": settings})
+		})
+
+		api.POST("/settings", func(c *gin.Context) {
+			var body map[string]string
+			if err := c.ShouldBindJSON(&body); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			for k, v := range body {
+				db.Where("key = ?", k).Assign(models.AppSetting{Value: v}).FirstOrCreate(&models.AppSetting{Key: k})
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "Settings updated"})
+		})
+
+		// ─── Platform Stats (Admin Dashboard) ────────────────────────────────────
+		api.GET("/stats", func(c *gin.Context) {
+			var activeStudents, totalClasses, totalYears, totalTeachers, totalExamAnswers, newStudentsMonth int64
+			var activeYear string
+
+			db.Model(&models.User{}).Where("role = ? AND active = ?", "student", true).Count(&activeStudents)
+			db.Model(&models.User{}).Where("role = ? AND active = ?", "teacher", true).Count(&totalTeachers)
+
+			var settings []models.AppSetting
+			db.Find(&settings)
+			settingsMap := make(map[string]string)
+			for _, s := range settings {
+				settingsMap[s.Key] = s.Value
+			}
+
+			var ay models.AcademicYear
+			if err := db.Where("is_active = ?", true).First(&ay).Error; err == nil {
+				activeYear = ay.YearRange
+				db.Model(&models.Class{}).Where("academic_year_id = ?", ay.ID).Count(&totalClasses)
+			}
+
+			db.Model(&models.AcademicYear{}).Count(&totalYears)
+			db.Model(&models.ExamAnswer{}).Count(&totalExamAnswers)
+
+			// New students this month
+			startOfMonth := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -time.Now().UTC().Day()+1)
+			db.Model(&models.User{}).Where("role = ? AND created_at >= ?", "student", startOfMonth).Count(&newStudentsMonth)
+
+			// Count submissions & exams for distribution chart
+			var totalAssignments, totalExams, totalSubmissions int64
+			db.Model(&models.Assignment{}).Count(&totalAssignments)
+			db.Model(&models.Exam{}).Count(&totalExams)
+			db.Model(&models.Submission{}).Count(&totalSubmissions)
+
+			// Students per class distribution (top 8)
+			type ClassCount struct {
+				Name  string `json:"name"`
+				Count int    `json:"count"`
+			}
+			var classDistribution []ClassCount
+			db.Raw(`SELECT c.name, COUNT(e.id) as count FROM classes c LEFT JOIN class_enrollments e ON e.class_id = c.id WHERE c.academic_year_id = (SELECT id FROM academic_years WHERE is_active = true LIMIT 1) GROUP BY c.name ORDER BY c.name LIMIT 8`).Scan(&classDistribution)
+
+			// Leaderboard (Top 5)
+			type TopStudent struct {
+				Name  string  `json:"name"`
+				Score float64 `json:"score"`
+				Photo string  `json:"photo"`
+			}
+			var topStudents []TopStudent
+			db.Table("users").
+				Select("users.name, COALESCE(AVG(grade_recaps.final_score), 0) as score, users.photo").
+				Joins("LEFT JOIN grade_recaps ON grade_recaps.student_id = users.id").
+				Where("users.role = ?", "student").
+				Group("users.id, users.name, users.photo").
+				Order("score DESC").
+				Limit(5).
+				Scan(&topStudents)
+
+			c.JSON(http.StatusOK, gin.H{
+				"active_students":      activeStudents,
+				"total_classes":        totalClasses,
+				"active_year":          activeYear,
+				"total_years":          totalYears,
+				"completed_exams":      totalExamAnswers,
+				"total_teachers":       totalTeachers,
+				"new_students_month":   newStudentsMonth,
+				"total_assignments":    totalAssignments,
+				"total_exams":          totalExams,
+				"total_submissions":    totalSubmissions,
+				"class_distribution":   classDistribution,
+				"app_settings":         settingsMap,
+				"top_students":         topStudents,
+			})
+		})
+
+		// ─── Learning Materials (Admin/Teacher) ───────────────────────────────────
+		materials := api.Group("/materials")
+		{
+			// GET /materials?class_id=1
+			materials.GET("", func(c *gin.Context) {
+				var classID int
+				fmt.Sscan(c.Query("class_id"), &classID)
+				var list []models.LearningMaterial
+				q := db.WithContext(c.Request.Context())
+				if classID > 0 {
+					q = q.Where("class_id = ?", classID)
+				}
+				q.Order("id DESC").Find(&list)
+				c.JSON(http.StatusOK, gin.H{"data": list})
+			})
+
+			materials.POST("", middleware.Auth(authSvc), middleware.RequireRole("teacher", "admin"), func(c *gin.Context) {
+				var input models.LearningMaterial
+				if err := c.ShouldBindJSON(&input); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+				if err := db.Create(&input).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusCreated, gin.H{"message": "Material added", "data": input})
+			})
+
+			materials.DELETE("/:id", middleware.Auth(authSvc), middleware.RequireRole("teacher", "admin"), func(c *gin.Context) {
+				var id int
+				fmt.Sscan(c.Param("id"), &id)
+				db.Delete(&models.LearningMaterial{}, id)
+				c.JSON(http.StatusOK, gin.H{"message": "Material deleted"})
+			})
+		}
+
+
 		academic := api.Group("/academic-years")
 		{
 			// GET /api/v1/academic-years
@@ -396,16 +532,19 @@ func main() {
 				})
 			})
 
-			// Endpoint specifically for Super Admin to create users (Teachers/Students/Admins)
-			// Only email + password are required; all other fields are optional
 			type RegisterInput struct {
-				Email    string `json:"email"    binding:"required,email"`
-				Password string `json:"password" binding:"required,min=6"`
-				Role     string `json:"role"     binding:"required"`
-				Name     string `json:"name"`   // optional
-				NIS      string `json:"nis"`    // optional (for students)
-				Photo    string `json:"photo"`  // optional
-				Active   *bool  `json:"active"` // optional, defaults to true
+				Email        string `json:"email"    binding:"required,email"`
+				Password     string `json:"password" binding:"required,min=6"`
+				Role         string `json:"role"     binding:"required"`
+				Name         string `json:"name"`   // optional
+				NIS          string `json:"nis"`    // optional (for students)
+				Photo        string `json:"photo"`  // optional
+				Active       *bool  `json:"active"` // optional, defaults to true
+				PlaceOfBirth string `json:"place_of_birth"`
+				DateOfBirth  string `json:"date_of_birth"`
+				Gender       string `json:"gender"`
+				Phone        string `json:"phone"`
+				Address      string `json:"address"`
 			}
 
 			auth.POST("/register", func(c *gin.Context) {
@@ -427,13 +566,18 @@ func main() {
 				}
 
 				newUser := models.User{
-					Email:    input.Email,
-					Password: input.Password, // will be hashed by CreateUser
-					Role:     input.Role,
-					Name:     input.Name,
-					NIS:      input.NIS,
-					Photo:    input.Photo,
-					Active:   active,
+					Email:        input.Email,
+					Password:     input.Password, // will be hashed by CreateUser
+					Role:         input.Role,
+					Name:         input.Name,
+					NIS:          input.NIS,
+					Photo:        input.Photo,
+					Active:       active,
+					PlaceOfBirth: input.PlaceOfBirth,
+					DateOfBirth:  input.DateOfBirth,
+					Gender:       input.Gender,
+					Phone:        input.Phone,
+					Address:      input.Address,
 				}
 
 				if err := authSvc.CreateUser(c.Request.Context(), &newUser); err != nil {
@@ -461,6 +605,18 @@ func main() {
 					return
 				}
 				c.JSON(http.StatusOK, gin.H{"data": list})
+			})
+
+			// GET /api/v1/users/birthdays-today
+			users.GET("/birthdays-today", func(c *gin.Context) {
+				var bdayUsers []models.User
+				// In PostgreSQL, extract month and day from date
+				db.WithContext(c.Request.Context()).
+					Omit("password").
+					Where("EXTRACT(MONTH FROM CAST(date_of_birth AS date)) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM CAST(date_of_birth AS date)) = EXTRACT(DAY FROM CURRENT_DATE)").
+					Find(&bdayUsers)
+
+				c.JSON(http.StatusOK, gin.H{"data": bdayUsers})
 			})
 
 			// GET /api/v1/users/:id
@@ -1020,38 +1176,20 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"data": data})
 		})
 
-		// ─── Admin Dashboard Stats ────────────────────────────────────────────────
-		api.GET("/stats", func(c *gin.Context) {
-			var activeStudents int64
-			db.Model(&models.User{}).Where("role = ? AND active = ?", "student", true).Count(&activeStudents)
-			var activeYear models.AcademicYear
-			db.Where("is_active = ?", true).First(&activeYear)
-			var totalClasses int64
-			if activeYear.ID > 0 {
-				db.Model(&models.Class{}).Where("academic_year_id = ?", activeYear.ID).Count(&totalClasses)
-			} else {
-				db.Model(&models.Class{}).Count(&totalClasses)
-			}
-			var totalYears int64
-			db.Model(&models.AcademicYear{}).Count(&totalYears)
-			var completedExams int64
-			db.Model(&models.ExamAnswer{}).Count(&completedExams)
-			var totalTeachers int64
-			db.Model(&models.User{}).Where("role = ?", "teacher").Count(&totalTeachers)
-			var newStudentsThisMonth int64
-			now := time.Now()
-			startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-			db.Model(&models.User{}).Where("role = ? AND created_at >= ?", "student", startOfMonth).Count(&newStudentsThisMonth)
-			c.JSON(http.StatusOK, gin.H{
-				"active_students":    activeStudents,
-				"total_classes":      totalClasses,
-				"active_year":        activeYear.YearRange,
-				"total_years":        totalYears,
-				"completed_exams":    completedExams,
-				"total_teachers":     totalTeachers,
-				"new_students_month": newStudentsThisMonth,
-			})
+		// ─── Student Own Grade Recap ──────────────────────────────────────────────
+		// GET /api/v1/student/grade-recap — returns all grade_recaps for the authenticated student
+		api.GET("/student/grade-recap", middleware.Auth(authSvc), middleware.RequireRole("student"), func(c *gin.Context) {
+			studentID, _ := c.Get(middleware.CtxUserID)
+			var recaps []models.GradeRecap
+			db.WithContext(c.Request.Context()).
+				Preload("Class").
+				Preload("Class.AcademicYear").
+				Where("student_id = ?", studentID.(int)).
+				Order("updated_at DESC").
+				Find(&recaps)
+			c.JSON(http.StatusOK, gin.H{"data": recaps})
 		})
+
 
 		// ─── Announcements (Pengumuman) ──────────────────────────────────────────────
 		// GET  /api/v1/announcements        — list all active announcements (all roles)
@@ -1240,6 +1378,237 @@ func main() {
 				},
 			)
 		}
+
+		// ─── Question Bank (Bank Soal) ───────────────────────────────────────────────
+		// Banks hold reusable question packages that can be imported into any exam.
+		// Admin and teacher can CRUD; students have no access.
+		banks := api.Group("/question-banks", middleware.Auth(authSvc), middleware.RequireRole("teacher", "admin"))
+		{
+			// GET /question-banks  — list all banks (with question count)
+			banks.GET("", func(c *gin.Context) {
+				type BankRow struct {
+					models.QuestionBank
+					QuestionCount int `json:"question_count"`
+				}
+				var banks []models.QuestionBank
+				db.WithContext(c.Request.Context()).
+					Preload("Creator").
+					Preload("Questions").
+					Order("id DESC").
+					Find(&banks)
+				// Strip passwords
+				for i := range banks {
+					if banks[i].Creator != nil {
+						banks[i].Creator.Password = ""
+					}
+				}
+				c.JSON(http.StatusOK, gin.H{"data": banks})
+			})
+
+			// GET /question-banks/:id — single bank with all questions
+			banks.GET("/:id", func(c *gin.Context) {
+				var id int
+				fmt.Sscan(c.Param("id"), &id)
+				var bank models.QuestionBank
+				if err := db.WithContext(c.Request.Context()).
+					Preload("Creator").
+					Preload("Questions", func(db *gorm.DB) *gorm.DB {
+						return db.Order("order_num ASC, id ASC")
+					}).
+					First(&bank, id).Error; err != nil {
+					c.JSON(http.StatusNotFound, gin.H{"error": "Bank soal tidak ditemukan"})
+					return
+				}
+				if bank.Creator != nil {
+					bank.Creator.Password = ""
+				}
+				c.JSON(http.StatusOK, gin.H{"data": bank})
+			})
+
+			// POST /question-banks — create a new bank
+			type CreateBankInput struct {
+				Title       string `json:"title"       binding:"required"`
+				Description string `json:"description"`
+			}
+			banks.POST("", func(c *gin.Context) {
+				var input CreateBankInput
+				if err := c.ShouldBindJSON(&input); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+				creatorID, _ := c.Get(middleware.CtxUserID)
+				cid := creatorID.(int)
+				bank := models.QuestionBank{
+					Title:       input.Title,
+					Description: input.Description,
+					CreatorID:   &cid,
+				}
+				if err := db.WithContext(c.Request.Context()).Create(&bank).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				db.Preload("Creator").First(&bank, bank.ID)
+				if bank.Creator != nil {
+					bank.Creator.Password = ""
+				}
+				c.JSON(http.StatusCreated, gin.H{"message": "Bank soal berhasil dibuat", "data": bank})
+			})
+
+			// PATCH /question-banks/:id — update title/description
+			banks.PATCH("/:id", func(c *gin.Context) {
+				var id int
+				fmt.Sscan(c.Param("id"), &id)
+				var bank models.QuestionBank
+				if err := db.First(&bank, id).Error; err != nil {
+					c.JSON(http.StatusNotFound, gin.H{"error": "Bank soal tidak ditemukan"})
+					return
+				}
+				var input struct {
+					Title       string `json:"title"`
+					Description string `json:"description"`
+				}
+				c.ShouldBindJSON(&input)
+				updates := map[string]interface{}{}
+				if input.Title != "" {
+					updates["title"] = input.Title
+				}
+				updates["description"] = input.Description
+				db.Model(&bank).Updates(updates)
+				c.JSON(http.StatusOK, gin.H{"message": "Bank soal diperbarui", "data": bank})
+			})
+
+			// DELETE /question-banks/:id — delete bank and all its questions (cascade)
+			banks.DELETE("/:id", func(c *gin.Context) {
+				var id int
+				fmt.Sscan(c.Param("id"), &id)
+				db.WithContext(c.Request.Context()).Delete(&models.BankQuestion{}, "bank_id = ?", id)
+				db.WithContext(c.Request.Context()).Delete(&models.QuestionBank{}, id)
+				c.JSON(http.StatusOK, gin.H{"message": "Bank soal dihapus"})
+			})
+
+			// POST /question-banks/:id/questions — add a question to a bank
+			type AddBankQuestionInput struct {
+				QuestionType string          `json:"question_type" binding:"required"`
+				Text         string          `json:"text"          binding:"required"`
+				Points       int             `json:"points"`
+				Options      json.RawMessage `json:"options"`
+			}
+			banks.POST("/:id/questions", func(c *gin.Context) {
+				var bankID int
+				fmt.Sscan(c.Param("id"), &bankID)
+				var input AddBankQuestionInput
+				if err := c.ShouldBindJSON(&input); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+				points := input.Points
+				if points == 0 {
+					points = 1
+				}
+				// Determine order_num
+				var maxOrder int
+				db.Model(&models.BankQuestion{}).Where("bank_id = ?", bankID).
+					Select("COALESCE(MAX(order_num), 0)").Scan(&maxOrder)
+				q := models.BankQuestion{
+					BankID:       bankID,
+					QuestionType: input.QuestionType,
+					Text:         input.Text,
+					Points:       points,
+					Options:      input.Options,
+					OrderNum:     maxOrder + 1,
+				}
+				if err := db.Create(&q).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusCreated, gin.H{"message": "Soal berhasil ditambahkan", "data": q})
+			})
+
+			// PUT /question-banks/questions/:qid — edit a specific bank question
+			banks.PUT("/questions/:qid", func(c *gin.Context) {
+				var qid int
+				fmt.Sscan(c.Param("qid"), &qid)
+				var q models.BankQuestion
+				if err := db.First(&q, qid).Error; err != nil {
+					c.JSON(http.StatusNotFound, gin.H{"error": "Soal tidak ditemukan"})
+					return
+				}
+				var input AddBankQuestionInput
+				if err := c.ShouldBindJSON(&input); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+				points := input.Points
+				if points == 0 {
+					points = 1
+				}
+				db.Model(&q).Updates(models.BankQuestion{
+					QuestionType: input.QuestionType,
+					Text:         input.Text,
+					Points:       points,
+					Options:      input.Options,
+				})
+				c.JSON(http.StatusOK, gin.H{"message": "Soal diperbarui", "data": q})
+			})
+
+			// DELETE /question-banks/questions/:qid — delete a specific bank question
+			banks.DELETE("/questions/:qid", func(c *gin.Context) {
+				var qid int
+				fmt.Sscan(c.Param("qid"), &qid)
+				db.Delete(&models.BankQuestion{}, qid)
+				c.JSON(http.StatusOK, gin.H{"message": "Soal dihapus"})
+			})
+
+			// POST /question-banks/:id/import-to-exam/:exam_id
+			// Copies all questions from a bank into an existing exam
+			banks.POST("/:id/import-to-exam/:exam_id", func(c *gin.Context) {
+				var bankID, examID int
+				fmt.Sscan(c.Param("id"), &bankID)
+				fmt.Sscan(c.Param("exam_id"), &examID)
+
+				// Verify exam exists
+				var exam models.Exam
+				if err := db.First(&exam, examID).Error; err != nil {
+					c.JSON(http.StatusNotFound, gin.H{"error": "Ujian tidak ditemukan"})
+					return
+				}
+
+				// Get all bank questions
+				var bankQuestions []models.BankQuestion
+				db.Where("bank_id = ?", bankID).Order("order_num ASC").Find(&bankQuestions)
+
+				if len(bankQuestions) == 0 {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Bank soal ini belum memiliki soal"})
+					return
+				}
+
+				// Get current max order_num in target exam
+				var maxOrder int
+				db.Model(&models.ExamQuestion{}).Where("exam_id = ?", examID).
+					Select("COALESCE(MAX(order_num), 0)").Scan(&maxOrder)
+
+				// Copy each bank question into the exam
+				imported := 0
+				for _, bq := range bankQuestions {
+					maxOrder++
+					eq := models.ExamQuestion{
+						ExamID:       examID,
+						OrderNum:     maxOrder,
+						QuestionType: bq.QuestionType,
+						Text:         bq.Text,
+						Points:       bq.Points,
+						Options:      bq.Options,
+					}
+					if err := db.Create(&eq).Error; err == nil {
+						imported++
+					}
+				}
+				c.JSON(http.StatusOK, gin.H{
+					"message":  fmt.Sprintf("%d soal berhasil diimpor ke ujian", imported),
+					"imported": imported,
+				})
+			})
+		}
 	}
 
 	port := getEnv("PORT", "8080")
@@ -1302,5 +1671,26 @@ func seedUsers(db *gorm.DB) {
 			continue
 		}
 		log.Printf("✅ Seeded user: %s (%s) / password123", u.Email, u.Role)
+	}
+}
+
+func seedSettings(db *gorm.DB) {
+	defaults := map[string]string{
+		"lpk_name":                   "LPK SO Mori Centre",
+		"lpk_motto":                  "Membentuk Tenaga Kerja Kompeten dan Berkarakter",
+		"lpk_address":                "Jl. Sejahtera No. 123, Indonesia",
+		"lpk_phone":                  "0812-3456-7890",
+		"min_pass_score":             "70",
+		"exam_max_attempt_default":   "1",
+		"allow_student_register":     "true",
+		"maintenance_mode":           "false",
+	}
+
+	for k, v := range defaults {
+		var count int64
+		db.Model(&models.AppSetting{}).Where("key = ?", k).Count(&count)
+		if count == 0 {
+			db.Create(&models.AppSetting{Key: k, Value: v})
+		}
 	}
 }

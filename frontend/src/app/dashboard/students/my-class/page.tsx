@@ -15,6 +15,9 @@ import {
     Search,
     X,
     Filter,
+    BookOpen,
+    Video,
+    Link as LinkIcon,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -65,6 +68,14 @@ interface Enrollment {
     };
 }
 
+interface Material {
+    id: number;
+    title: string;
+    description: string;
+    type: "pdf" | "video" | "link";
+    url: string;
+}
+
 function formatDue(due: string | null): string {
     if (!due) return "Tidak ada batas waktu";
     const d = new Date(due);
@@ -85,11 +96,41 @@ function urgencyClass(due: string | null): string {
     return "bg-emerald-50 text-emerald-600 border-emerald-100";
 }
 
+function MaterialCard({ m }: { m: Material }) {
+    const isVideo = m.type === "video";
+    const isPdf = m.type === "pdf";
+
+    return (
+        <a 
+            href={m.url} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-start gap-4 p-4 rounded-2xl bg-white border border-gray-100 hover:border-[#4ECDC4]/50 hover:shadow-sm transition-all group"
+        >
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110 ${
+                isPdf ? "bg-red-50 text-red-500" :
+                isVideo ? "bg-blue-50 text-blue-500" :
+                "bg-emerald-50 text-emerald-500"
+            }`}>
+                {isPdf ? <FileText size={24} /> : isVideo ? <Video size={24} /> : <LinkIcon size={24} />}
+            </div>
+            <div className="flex-1 min-w-0">
+                <h4 className="font-bold text-gray-800 text-sm group-hover:text-[#006D77] transition-colors truncate">{m.title}</h4>
+                <p className="text-[10px] text-gray-400 mt-1 line-clamp-2">{m.description || "Klik untuk membuka materi ini."}</p>
+            </div>
+            <div className="self-center">
+                 <ChevronRight size={16} className="text-gray-300 group-hover:text-[#006D77]" />
+            </div>
+        </a>
+    );
+}
+
 export default function MyClassPage() {
     const [dashboardData, setDashboardData] = useState<StudentDashboard | null>(null);
     const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
     const [classDetail, setClassDetail] = useState<ClassDetail | null>(null);
     const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+    const [materials, setMaterials] = useState<Material[]>([]);
     
     const [loading, setLoading] = useState(true);
     const [detailLoading, setDetailLoading] = useState(false);
@@ -133,6 +174,12 @@ export default function MyClassPage() {
             if (envRes.ok) {
                 const json = await envRes.json();
                 setEnrollments(json.data ?? []);
+            }
+
+            const matRes = await fetch(`${API}/materials?class_id=${id}`, { headers: { Authorization: `Bearer ${token}` } });
+            if (matRes.ok) {
+                const json = await matRes.json();
+                setMaterials(json.data ?? []);
             }
         } catch (error) {
             console.error("Failed to fetch class detail", error);
@@ -239,6 +286,22 @@ export default function MyClassPage() {
                     </div>
                 </div>
             </div>
+
+            {/* ── Materials Module ── */}
+            {materials.length > 0 && (
+                <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-[#4ECDC4]/10 flex items-center justify-center text-[#006D77]">
+                            <BookOpen size={18} />
+                        </div>
+                        <h2 className="text-xl font-serif font-black text-[#0D1B2A]">Materi Pembelajaran</h2>
+                        <span className="text-[10px] font-bold text-white bg-[#006D77] px-2 py-0.5 rounded-full">{materials.length} Baru</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        {materials.map(m => <MaterialCard key={m.id} m={m} />)}
+                    </div>
+                </div>
+            )}
 
             {/* ── Assignment Section ── */}
             <div className="space-y-4">

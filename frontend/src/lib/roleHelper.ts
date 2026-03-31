@@ -28,6 +28,7 @@ export type Feature =
     | "settings"
     | "my_class"
     | "student_assignments"
+    | "materials"
     | "student_recap";
 
 type PermissionMap = Record<Feature, boolean>;
@@ -49,6 +50,7 @@ const PERMISSIONS: Record<Role, PermissionMap> = {
         notifications: true,
         reports: true,
         settings: true,
+        materials: true,
         my_class: false,
         student_assignments: false,
         student_recap: false,
@@ -64,11 +66,12 @@ const PERMISSIONS: Record<Role, PermissionMap> = {
         teacher_exams: true,
         admin_exams: false,
         exams: false,
-        question_bank: false,
+        question_bank: true,
         my_results: false,
         notifications: true,
         reports: true,
         settings: false,
+        materials: true,
         my_class: false,
         student_assignments: false,
         student_recap: false,
@@ -83,14 +86,15 @@ const PERMISSIONS: Record<Role, PermissionMap> = {
         teacher_assignments: false,
         teacher_exams: false,
         admin_exams: false,
-        exams: false,            // accessed via my-class, not sidebar
+        exams: true,              // student accesses exams at /dashboard/students/exams
         question_bank: false,
-        my_results: false,       // replaced by student_recap
+        my_results: false,
         notifications: true,
         reports: false,
         settings: false,
+        materials: true,
         my_class: true,
-        student_assignments: false, // accessed via my-class, not sidebar
+        student_assignments: true, // student accesses assignments at /dashboard/students/assignments
         student_recap: true,
     },
 };
@@ -208,25 +212,11 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         feature: "my_class",
     },
     {
-        name: "Notifikasi",
-        nameJa: "通知",
-        href: "/dashboard/notifications",
-        icon: "Bell",
-        feature: "notifications",
-    },
-    {
         name: "Rekap Nilai",
         nameJa: "成績確認",
         href: "/dashboard/teacher/recap",
         icon: "PieChart",
         feature: "reports",
-    },
-    {
-        name: "Pengaturan",
-        nameJa: "設定",
-        href: "/dashboard/settings",
-        icon: "Settings",
-        feature: "settings",
     },
     {
         name: "Tugas Siswa",
@@ -239,6 +229,27 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         href: "/dashboard/students/exams",
         icon: "FileText",
         feature: "exams",
+    },
+    {
+        name: "Modul Materi",
+        nameJa: "学習教材",
+        href: "/dashboard/materials",
+        icon: "BookOpen",
+        feature: "materials",
+    },
+    {
+        name: "Notifikasi",
+        nameJa: "通知",
+        href: "/dashboard/notifications",
+        icon: "Bell",
+        feature: "notifications",
+    },
+    {
+        name: "Pengaturan",
+        nameJa: "設定",
+        href: "/dashboard/settings",
+        icon: "Settings",
+        feature: "settings",
     },
 ];
 

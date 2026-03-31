@@ -234,115 +234,89 @@ export default function NotificationsPage() {
     const unreadCount = notifications.filter(n => !n.is_read).length;
 
     return (
-        <div className="max-w-2xl mx-auto space-y-5">
+        <div className="max-w-6xl mx-auto space-y-6 pb-20">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="bg-white rounded-[32px] border border-gray-100 shadow-[0_8px_30px_-10px_rgba(0,0,0,0.05)] p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] mb-1" style={{ color: "var(--accent)" }}>
-                        通知
-                    </p>
-                    <h1
-                        className="text-2xl font-bold"
-                        style={{ color: "var(--text-primary)", fontFamily: "var(--font-serif)", letterSpacing: "-0.02em" }}
-                    >
-                        Notifikasi
+                    <h1 className="text-3xl font-serif font-black text-[#0D1B2A] mb-1 flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#006D77]/10 flex items-center justify-center text-[#006D77]">
+                            <Bell size={20} />
+                        </div>
+                        Pusat Notifikasi
                     </h1>
+                    <p className="text-sm text-gray-400">Pemberitahuan terbaru seputar ujian, tugas, nilai, dan pengumuman lainnya.</p>
                 </div>
                 {unreadCount > 0 && (
-                    <button
-                        onClick={markAll}
-                        className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors"
-                        style={{ color: "var(--accent)", background: "var(--accent-soft)", border: "1px solid var(--accent-border)" }}
-                    >
-                        <CheckCheck size={13} />
-                        Tandai semua dibaca
+                    <button onClick={markAll} className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold text-white shadow-lg shadow-[#006D77]/20 hover:scale-105 active:scale-95 transition-all bg-[#006D77] shrink-0">
+                        <CheckCheck size={18} /> Tandai Semua Dibaca
                     </button>
                 )}
             </div>
 
             {/* List */}
-            <div
-                className="rounded-2xl overflow-hidden"
-                style={{
-                    background: "var(--bg-surface)",
-                    border: "1px solid var(--border)",
-                    boxShadow: "var(--shadow-sm)",
-                }}
-            >
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden animate-in fade-in duration-500">
                 {loading ? (
-                    <div className="flex items-center justify-center py-14 gap-2.5 text-sm" style={{ color: "var(--text-muted)" }}>
-                        <div
-                            className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin"
-                            style={{ borderColor: "var(--accent-border)", borderTopColor: "transparent" }}
-                        />
+                    <div className="flex items-center justify-center py-20">
+                        <div className="w-6 h-6 border-2 border-t-transparent border-[#006D77] rounded-full animate-spin" />
                     </div>
                 ) : notifications.length === 0 ? (
-                    <div className="flex flex-col items-center py-14 gap-3">
-                        <Bell size={28} style={{ color: "var(--text-muted)", opacity: 0.3 }} />
-                        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                            Belum ada notifikasi
-                        </p>
+                    <div className="flex flex-col items-center justify-center py-20 gap-3">
+                        <Bell size={40} className="text-gray-200" />
+                        <p className="text-sm text-gray-400 font-semibold">Belum Ada Notifikasi</p>
+                        <p className="text-[11px] text-gray-400">Pemberitahuan baru akan muncul di sini.</p>
                     </div>
                 ) : (
-                    notifications.map((n) => {
-                        const cfg = TYPE_CFG[n.type] ?? { icon: Bell, color: "var(--text-muted)", bg: "var(--bg-subtle)" };
-                        const TypeIcon = cfg.icon;
-                        return (
-                            <div
-                                key={n.id}
-                                className="flex gap-4 px-5 py-4 transition-colors"
-                                style={{
-                                    borderBottom: "1px solid var(--border-subtle)",
-                                    background: !n.is_read ? "var(--accent-soft)" : "transparent",
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (n.is_read) (e.currentTarget as HTMLElement).style.background = "var(--bg-subtle)";
-                                }}
-                                onMouseLeave={(e) => {
-                                    (e.currentTarget as HTMLElement).style.background = !n.is_read ? "var(--accent-soft)" : "transparent";
-                                }}
-                            >
+                    <div className="divide-y divide-gray-50">
+                        {notifications.map((n) => {
+                            const cfg = TYPE_CFG[n.type] ?? { icon: Bell, color: "#006D77", bg: "#006D7715" };
+                            const TypeIcon = cfg.icon;
+                            return (
                                 <div
-                                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                                    style={{ background: cfg.bg }}
+                                    key={n.id}
+                                    className={`flex gap-4 px-6 py-5 transition-colors group ${
+                                        !n.is_read ? "bg-[#006D77]/5 hover:bg-[#006D77]/10" : "hover:bg-gray-50/50"
+                                    }`}
                                 >
-                                    <TypeIcon size={16} style={{ color: cfg.color }} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-start justify-between gap-2">
-                                        <p
-                                            className="text-sm font-semibold"
-                                            style={{ color: !n.is_read ? "var(--text-primary)" : "var(--text-secondary)" }}
-                                        >
-                                            {n.title}
-                                        </p>
-                                        <div className="flex items-center gap-1 shrink-0">
-                                            <Clock size={10} style={{ color: "var(--text-muted)" }} />
-                                            <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                                                {timeAgo(n.created_at)}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <p className="text-sm mt-0.5 leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                                        {n.message}
-                                    </p>
-                                </div>
-                                {!n.is_read && (
                                     <div
-                                        className="w-2 h-2 rounded-full mt-2 shrink-0"
-                                        style={{ background: "var(--accent)" }}
-                                    />
-                                )}
-                            </div>
-                        );
-                    })
+                                        className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm"
+                                        style={{ background: cfg.bg }}
+                                    >
+                                        <TypeIcon size={20} style={{ color: cfg.color }} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <p
+                                                className={`text-sm ${
+                                                    !n.is_read ? "font-bold text-[#0D1B2A]" : "font-semibold text-gray-500"
+                                                }`}
+                                            >
+                                                {n.title}
+                                            </p>
+                                            <div className="flex items-center gap-1.5 shrink-0 text-gray-400">
+                                                <Clock size={12} />
+                                                <span className="text-[11px] font-medium">
+                                                    {timeAgo(n.created_at)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <p className="text-sm mt-1 text-gray-500 leading-relaxed pr-8">
+                                            {n.message}
+                                        </p>
+                                    </div>
+                                    {!n.is_read && (
+                                        <div className="w-2.5 h-2.5 rounded-full bg-[#006D77] mt-2 shrink-0 shadow-[0_0_8px_rgba(0,109,119,0.5)] animate-pulse" />
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
                 )}
             </div>
 
             {/* Footer note */}
-            <div className="flex items-center gap-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
-                <BookOpen size={11} />
-                Notifikasi disimpan sampai 30 item terakhir
+            <div className="flex items-center justify-center gap-2 text-[11px] font-medium text-gray-400 pt-4">
+                <BookOpen size={14} />
+                Notifikasi otomatis disimpan sampai 30 item terakhir
             </div>
         </div>
     );

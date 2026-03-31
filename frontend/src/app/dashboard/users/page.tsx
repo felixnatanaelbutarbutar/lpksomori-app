@@ -34,6 +34,11 @@ interface User {
     photo: string;
     active: boolean;
     created_at: string;
+    place_of_birth?: string;
+    date_of_birth?: string;
+    gender?: string;
+    phone?: string;
+    address?: string;
 }
 
 type RoleTab = "all" | "teacher" | "student";
@@ -197,13 +202,13 @@ export default function UsersPage() {
     // Create modal
     const [showCreate, setShowCreate] = useState(false);
     const [createRole, setCreateRole] = useState<"teacher" | "student">("teacher");
-    const [form, setForm] = useState({ email: "", password: "", name: "", nis: "", active: true });
+    const [form, setForm] = useState({ email: "", password: "", name: "", nis: "", active: true, place_of_birth: "", date_of_birth: "", gender: "L", phone: "", address: "" });
     const [formError, setFormError] = useState("");
     const [formLoading, setFormLoading] = useState(false);
 
     // Edit modal
     const [editUser, setEditUser] = useState<User | null>(null);
-    const [editForm, setEditForm] = useState({ name: "", nis: "", active: true, photo: "" });
+    const [editForm, setEditForm] = useState({ name: "", nis: "", active: true, photo: "", place_of_birth: "", date_of_birth: "", gender: "L", phone: "", address: "" });
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
     // Password reset modal
@@ -259,12 +264,17 @@ export default function UsersPage() {
                     name: form.name || undefined,
                     nis: form.nis || undefined,
                     active: form.active,
+                    place_of_birth: form.place_of_birth || undefined,
+                    date_of_birth: form.date_of_birth || undefined,
+                    gender: form.gender,
+                    phone: form.phone || undefined,
+                    address: form.address || undefined,
                 }),
             });
             const json = await res.json();
             if (!res.ok) throw new Error(json.error ?? "Gagal membuat akun");
             setShowCreate(false);
-            setForm({ email: "", password: "", name: "", nis: "", active: true });
+            setForm({ email: "", password: "", name: "", nis: "", active: true, place_of_birth: "", date_of_birth: "", gender: "L", phone: "", address: "" });
             fetchUsers();
             showToast(`Akun ${createRole === "teacher" ? "Guru" : "Siswa"} berhasil dibuat! 🎉`);
         } catch (err: unknown) {
@@ -285,6 +295,11 @@ export default function UsersPage() {
                     name: editForm.name || undefined,
                     nis: editForm.nis || undefined,
                     active: editForm.active,
+                    place_of_birth: editForm.place_of_birth || undefined,
+                    date_of_birth: editForm.date_of_birth || undefined,
+                    gender: editForm.gender,
+                    phone: editForm.phone || undefined,
+                    address: editForm.address || undefined,
                 }),
             });
             if (!res.ok) throw new Error("Gagal menyimpan");
@@ -356,7 +371,17 @@ export default function UsersPage() {
 
     const openEdit = (u: User) => {
         setEditUser(u);
-        setEditForm({ name: u.name ?? "", nis: u.nis ?? "", active: u.active, photo: u.photo ?? "" });
+        setEditForm({ 
+            name: u.name ?? "", 
+            nis: u.nis ?? "", 
+            active: u.active, 
+            photo: u.photo ?? "",
+            place_of_birth: u.place_of_birth ?? "",
+            date_of_birth: u.date_of_birth ? u.date_of_birth.substring(0, 10) : "",
+            gender: u.gender ?? "L",
+            phone: u.phone ?? "",
+            address: u.address ?? "" 
+        });
     };
 
     const tabs: { key: RoleTab; label: string; labelJa: string; icon: React.ElementType; count: number }[] = [
@@ -366,30 +391,26 @@ export default function UsersPage() {
     ];
 
     return (
-        <div className="space-y-6 max-w-7xl mx-auto">
+        <div className="max-w-7xl mx-auto space-y-6 pb-20">
             {/* Toast */}
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="bg-white rounded-[32px] border border-gray-100 shadow-[0_8px_30px_-10px_rgba(0,0,0,0.05)] p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] mb-1" style={{ color: "var(--accent)" }}>ユーザー管理</p>
-                    <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "var(--font-serif)", letterSpacing: "-0.02em" }}>
+                    <h1 className="text-3xl font-serif font-black text-[#0D1B2A] mb-1 flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-[#006D77]/10 flex items-center justify-center text-[#006D77]">
+                            <Users size={20} />
+                        </div>
                         Manajemen Pengguna
                     </h1>
-                    <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
-                        Kelola akun Guru dan Siswa di platform
-                    </p>
+                    <p className="text-sm text-gray-400">Tambah, nonaktifkan, dan ubah pengaturan akun Guru serta Siswa di platform ini.</p>
                 </div>
                 <button
                     onClick={() => setShowCreate(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all shrink-0"
-                    style={{ background: "var(--accent)", boxShadow: "0 4px 12px rgba(13,122,111,0.25)" }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-hover)"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent)"; }}
+                    className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#006D77] text-white font-bold text-sm shadow-lg shadow-[#006D77]/20 transition-all hover:scale-105 active:scale-95 w-full sm:w-auto shrink-0"
                 >
-                    <Plus size={15} />
-                    Tambah Pengguna
+                    <Plus size={18} /> Tambah Pengguna
                 </button>
             </div>
 
@@ -669,8 +690,8 @@ export default function UsersPage() {
                                 className={inputCls}
                             />
                         </Field>
-                        {createRole === "student" && (
-                            <Field label="NIS">
+                        {createRole === "student" ? (
+                            <Field label="NIS / NISN">
                                 <input
                                     type="text"
                                     placeholder="Nomor Induk Siswa"
@@ -679,7 +700,39 @@ export default function UsersPage() {
                                     className={inputCls}
                                 />
                             </Field>
+                        ) : (
+                            <Field label="NUPTK / NIP (Opsional)">
+                                <input
+                                    type="text"
+                                    placeholder="NUPTK atau NIP"
+                                    value={form.nis}
+                                    onChange={(e) => setForm({ ...form, nis: e.target.value })}
+                                    className={inputCls}
+                                />
+                            </Field>
                         )}
+                        <div className="grid grid-cols-2 gap-3">
+                            <Field label="Tempat Lahir">
+                                <input type="text" placeholder="Kota" value={form.place_of_birth} onChange={(e) => setForm({ ...form, place_of_birth: e.target.value })} className={inputCls} />
+                            </Field>
+                            <Field label="Tanggal Lahir">
+                                <input type="date" value={form.date_of_birth} onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })} className={inputCls} />
+                            </Field>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <Field label="Jenis Kelamin">
+                                <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} className={inputCls + " appearance-none bg-white"}>
+                                    <option value="L">Laki-laki</option>
+                                    <option value="P">Perempuan</option>
+                                </select>
+                            </Field>
+                            <Field label="No. Telepon / WA">
+                                <input type="text" placeholder="08..." value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={inputCls} />
+                            </Field>
+                        </div>
+                        <Field label="Alamat">
+                            <textarea placeholder="Alamat lengkap" rows={2} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className={inputCls} />
+                        </Field>
                         <div className="flex items-center gap-3 pt-1 px-1">
                             <button
                                 type="button"
@@ -756,12 +809,35 @@ export default function UsersPage() {
                         <Field label="NIS">
                             <input
                                 type="text"
-                                placeholder="Nomor Induk Siswa"
+                                placeholder={editUser?.role === "teacher" ? "NUPTK / NIP" : "Nomor Induk Siswa"}
                                 value={editForm.nis}
                                 onChange={(e) => setEditForm({ ...editForm, nis: e.target.value })}
                                 className={inputCls}
                             />
                         </Field>
+                        <div className="grid grid-cols-2 gap-3">
+                            <Field label="Tempat Lahir">
+                                <input type="text" placeholder="Kota" value={editForm.place_of_birth} onChange={(e) => setEditForm({ ...editForm, place_of_birth: e.target.value })} className={inputCls} />
+                            </Field>
+                            <Field label="Tanggal Lahir">
+                                <input type="date" value={editForm.date_of_birth} onChange={(e) => setEditForm({ ...editForm, date_of_birth: e.target.value })} className={inputCls} />
+                            </Field>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <Field label="Jenis Kelamin">
+                                <select value={editForm.gender} onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })} className={inputCls + " appearance-none bg-white"}>
+                                    <option value="L">Laki-laki</option>
+                                    <option value="P">Perempuan</option>
+                                </select>
+                            </Field>
+                            <Field label="No. Telepon / WA">
+                                <input type="text" placeholder="08..." value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className={inputCls} />
+                            </Field>
+                        </div>
+                        <Field label="Alamat">
+                            <textarea placeholder="Alamat lengkap" rows={2} value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} className={inputCls} />
+                        </Field>
+
                         <div className="flex items-center gap-3 px-1">
                             <button
                                 type="button"

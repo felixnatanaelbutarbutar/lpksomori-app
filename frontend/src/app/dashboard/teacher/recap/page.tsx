@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
     ChevronLeft, GraduationCap, CheckCircle2, XCircle,
-    AlertCircle, Save, Search, BarChart3, TrendingUp, Download
+    AlertCircle, Save, Search, BarChart3, TrendingUp, Download, BookOpen
 } from "lucide-react";
 import Swal from "sweetalert2";
 
@@ -201,19 +201,54 @@ export default function TeacherRecapPage() {
     // ───────────────────────────────────────────────
     if (!selectedClassId) {
         return (
-            <div className="max-w-4xl mx-auto space-y-6">
-                <h1 className="text-2xl font-serif font-black text-[#0D1B2A]">Rekapitulasi Nilai &amp; Kenaikan</h1>
-                <p className="text-gray-500">Pilih kelas untuk melihat rekapitulasi nilai akhir siswa.</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {classes.map(c => (
-                        <div key={c.id} onClick={() => setSelectedClassId(c.id)} className="p-6 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center gap-4 hover:border-[#006D77]/30">
-                            <div className="w-12 h-12 rounded-xl bg-[#006D77]/10 flex items-center justify-center text-[#006D77]"><GraduationCap size={24} /></div>
-                            <div>
-                                <h3 className="font-bold text-[#0D1B2A]">{c.name}</h3>
-                                <p className="text-xs text-gray-400">Lihat Rekap Nilai</p>
+            <div className="max-w-6xl mx-auto space-y-6 pb-20">
+                <div className="bg-white rounded-[32px] border border-gray-100 shadow-[0_8px_30px_-10px_rgba(0,0,0,0.05)] p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div>
+                        <h1 className="text-3xl font-serif font-black text-[#0D1B2A] mb-1 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-[#006D77]/10 flex items-center justify-center text-[#006D77]">
+                                <GraduationCap size={20} />
                             </div>
-                        </div>
-                    ))}
+                            Rekapitulasi Nilai & Kenaikan
+                        </h1>
+                        <p className="text-sm text-gray-400">Pilih kelas yang Anda ajar di bawah ini untuk melihat dan mengelola rekapitulasi nilai akhir siswa.</p>
+                    </div>
+                </div>
+                
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden animate-in fade-in duration-500">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="border-b border-gray-50 bg-gray-50/50">
+                                <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Nama Kelas</th>
+                                <th className="text-right px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {classes.length === 0 ? (
+                                <tr>
+                                    <td colSpan={2} className="px-6 py-10 text-center text-gray-400">Belum ada kelas terdaftar.</td>
+                                </tr>
+                            ) : classes.map(c => (
+                                <tr key={c.id} className="hover:bg-[#006D77]/5 transition-colors group">
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:text-[#006D77] group-hover:bg-white border border-gray-100 transition-colors">
+                                                <BookOpen size={16} />
+                                            </div>
+                                            <span className="font-bold text-[#0D1B2A]">{c.name}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <button 
+                                            onClick={() => setSelectedClassId(c.id)} 
+                                            className="inline-flex items-center gap-2 px-4 py-2 bg-[#006D77]/10 text-[#006D77] font-bold text-xs rounded-xl hover:bg-[#006D77] hover:text-white transition-colors"
+                                        >
+                                            Lihat Rekap
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         );
@@ -228,11 +263,13 @@ export default function TeacherRecapPage() {
             </button>
 
             {/* ── Header + Controls ── */}
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
+            <div className="bg-white rounded-[32px] border border-gray-100 shadow-[0_8px_30px_-10px_rgba(0,0,0,0.05)] p-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-6">
                     <div>
-                        <h1 className="text-2xl font-serif font-black text-[#0D1B2A]">Rekapitulasi: {className}</h1>
-                        <p className="text-sm text-gray-400 mt-1">Atur bobot nilai, hitung ulang, dan ekspor data.</p>
+                        <h1 className="text-3xl font-serif font-black text-[#0D1B2A] mb-1">
+                            Rekapitulasi: <span className="text-[#006D77]">{className}</span>
+                        </h1>
+                        <p className="text-sm text-gray-400">Atur bobot perbandingan nilai, hitung otomatis, dan ekspor data ke format CSV.</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
                         {/* Weight inputs */}
@@ -276,28 +313,28 @@ export default function TeacherRecapPage() {
                     {/* Status cards */}
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
                         <h3 className="font-bold text-[#0D1B2A] flex items-center gap-2"><BarChart3 size={18} className="text-[#006D77]" /> Status Kenaikan</h3>
-                        <div className="flex items-center justify-center gap-8">
+                        <div className="flex items-center justify-center gap-8 h-full">
                             <DonutChart passed={passed} failed={failed} pending={pending} total={filteredRecap.length} />
-                            <div className="space-y-2 text-sm">
-                                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-emerald-600" /><span className="text-gray-600">Lulus: <b className="text-emerald-700">{passed}</b></span></div>
-                                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-600" /><span className="text-gray-600">Mengulang: <b className="text-red-600">{failed}</b></span></div>
-                                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-500" /><span className="text-gray-600">Proses: <b className="text-blue-600">{pending}</b></span></div>
+                            <div className="space-y-3 text-sm font-medium">
+                                <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-lg bg-emerald-500 shadow-sm" /><span className="text-gray-600">Lulus: <b className="text-[#0D1B2A] ml-1">{passed}</b></span></div>
+                                <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-lg bg-red-500 shadow-sm" /><span className="text-gray-600">Mengulang: <b className="text-[#0D1B2A] ml-1">{failed}</b></span></div>
+                                <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-lg bg-blue-500 shadow-sm" /><span className="text-gray-600">Proses: <b className="text-[#0D1B2A] ml-1">{pending}</b></span></div>
                             </div>
                         </div>
                     </div>
 
                     {/* Average cards */}
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+                    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 space-y-4 hover:shadow-md transition-shadow delay-75 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <h3 className="font-bold text-[#0D1B2A] flex items-center gap-2"><TrendingUp size={18} className="text-purple-600" /> Rata-Rata Kelas</h3>
                         <div className="space-y-3">
                             {[
-                                { label: "Nilai Akhir", value: avgFinal, color: "#006D77", bg: "bg-teal-50" },
-                                { label: "Rerata Tugas", value: avgTask, color: "#7c3aed", bg: "bg-purple-50" },
-                                { label: "Rerata Ujian", value: avgExam, color: "#0369a1", bg: "bg-blue-50" },
+                                { label: "Nilai Akhir", value: avgFinal, color: "#006D77", bg: "bg-teal-50/50" },
+                                { label: "Rerata Tugas", value: avgTask, color: "#7c3aed", bg: "bg-purple-50/50" },
+                                { label: "Rerata Ujian", value: avgExam, color: "#0369a1", bg: "bg-blue-50/50" },
                             ].map(m => (
-                                <div key={m.label} className={`flex items-center justify-between p-3 ${m.bg} rounded-xl`}>
-                                    <span className="text-sm font-medium text-gray-600">{m.label}</span>
-                                    <span className="text-lg font-black" style={{ color: m.color }}>{m.value.toFixed(1)}</span>
+                                <div key={m.label} className={`flex items-center justify-between p-3 ${m.bg} rounded-2xl border border-white`}>
+                                    <span className="text-sm font-semibold text-gray-500">{m.label}</span>
+                                    <span className="text-xl font-black font-serif" style={{ color: m.color }}>{m.value.toFixed(1)}</span>
                                 </div>
                             ))}
                         </div>
@@ -409,8 +446,8 @@ export default function TeacherRecapPage() {
                                         <td className="px-4 py-4 text-right">
                                             <button onClick={() => handleUpdateRecap(r.student_id, r.status, r.notes, r.final_score)}
                                                 disabled={savingId === r.student_id}
-                                                className="inline-flex items-center gap-2 px-3 py-2 bg-[#006D77] text-white rounded-xl text-xs font-bold shadow hover:scale-105 active:scale-95 transition-all disabled:opacity-50">
-                                                {savingId === r.student_id ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save size={13} />}
+                                                className="inline-flex items-center gap-2 px-4 py-2 bg-[#006D77] text-white rounded-xl text-xs font-bold shadow hover:scale-105 active:scale-95 transition-all disabled:opacity-50">
+                                                {savingId === r.student_id ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save size={14} />}
                                                 Simpan
                                             </button>
                                         </td>
