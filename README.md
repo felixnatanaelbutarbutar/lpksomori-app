@@ -461,7 +461,6 @@ ports:
 
 Akun admin dibuat otomatis saat backend pertama kali start. Tunggu beberapa detik setelah container backend berjalan, lalu coba login kembali.
 
-docker compose up --build -d
 ---
 
 ## 📄 Lisensi

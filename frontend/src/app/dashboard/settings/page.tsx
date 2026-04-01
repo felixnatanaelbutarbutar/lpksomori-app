@@ -69,6 +69,42 @@ export default function AdminSettingsPage() {
         }
     };
 
+    const handleBackup = async () => {
+        try {
+            Swal.fire({
+                title: 'Sedang Menyiapkan Backup...',
+                text: 'Harap tunggu sebentar, sistem sedang mengunduh file database .sql Anda.',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            const res = await fetch(`${API}/settings/backup`);
+            if (!res.ok) throw new Error("Gagal mengunduh backup");
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `backup_lpkmori_${new Date().toISOString().split('T')[0]}.sql`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+
+            Swal.fire({
+                title: "Berhasil! 💾",
+                text: "Database telah berhasil di-backup dalam format .sql",
+                icon: "success",
+                confirmButtonColor: "#006D77",
+            });
+        } catch (error) {
+            console.error(error);
+            Swal.fire("Error", "Gagal melakukan backup database. Pastikan sistem memiliki izin yang cukup.", "error");
+        }
+    };
+
     const updateSetting = (key: string, val: string) => {
         setSettings(prev => ({ ...prev, [key]: val }));
     };
@@ -129,7 +165,10 @@ export default function AdminSettingsPage() {
                         <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-gray-500 hover:bg-red-50 hover:text-red-500 transition-colors">
                             <RotateCcw size={18} /> Bersihkan Cache
                         </button>
-                        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-gray-500 hover:bg-emerald-50 hover:text-emerald-500 transition-colors">
+                        <button 
+                            onClick={handleBackup}
+                            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-gray-500 hover:bg-emerald-50 hover:text-emerald-500 transition-colors"
+                        >
                             <Database size={18} /> Backup Database
                         </button>
                     </div>

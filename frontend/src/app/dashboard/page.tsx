@@ -338,11 +338,11 @@ export default function DashboardPage() {
 
                 <div className="relative z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                     <div>
-                        <p className="text-white/60 text-xs font-semibold uppercase tracking-widest mb-1">{greeting}</p>
-                        <h1 className="text-3xl font-bold text-white mb-1" style={{ fontFamily: "var(--font-serif)" }}>
+                        <p className="text-white/60 text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.6)" }}>{greeting}</p>
+                        <h1 className="text-3xl font-bold text-white mb-1" style={{ fontFamily: "var(--font-serif)", color: "white" }}>
                             {firstName} <span className="animate-bounce inline-block">👋</span>
                         </h1>
-                        <p className="text-white/70 mt-1 text-sm">
+                        <p className="text-white/70 mt-1 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
                             {stats?.app_settings?.lpk_name || "LPK SO Mori Centre"}{stats?.active_year ? ` — T.A. ${stats.active_year}` : ""}
                         </p>
                     </div>

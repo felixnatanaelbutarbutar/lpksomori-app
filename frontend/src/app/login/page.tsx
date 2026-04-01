@@ -173,7 +173,7 @@ export default function LoginPage() {
                 </div>
 
                 <p className="text-[11px] relative z-10" style={{ color: "rgba(255,255,255,0.2)" }}>
-                    © 2025 LPK SO Mori Centre. All rights reserved.
+                    © {new Date().getFullYear()} LPK SO Mori Centre. All rights reserved.
                 </p>
             </div>
 

@@ -148,12 +148,12 @@ export default function StudentDashboardPage() {
                 <div className="absolute right-0 top-0 w-64 h-64 rounded-full opacity-10 bg-white blur-3xl translate-x-1/3 -translate-y-1/3" />
                 <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                        <p className="text-white/80 text-xs font-semibold uppercase tracking-widest mb-1">{greeting}</p>
-                        <h1 className="text-3xl font-bold text-white mb-2" style={{ fontFamily: "var(--font-serif)" }}>
+                        <p className="text-white/80 text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.8)" }}>{greeting}</p>
+                        <h1 className="text-3xl font-bold text-white mb-1" style={{ fontFamily: "var(--font-serif)", color: "white" }}>
                             {firstName} <span className="animate-bounce inline-block">👋</span>
                         </h1>
-                        <p className="text-white/90 text-sm">
-                            Kamu terdaftar di <span className="font-bold">{data?.enrollments?.length ?? 0} kelas</span> dengan <span className="font-bold">{pendingCount} tugas</span> yang belum diselesaikan.
+                        <p className="text-white/90 text-sm" style={{ color: "rgba(255,255,255,0.9)" }}>
+                            Kamu terdaftar di <span className="font-bold underline decoration-[#006D77]">{data?.enrollments?.length ?? 0} kelas</span> dengan <span className="font-bold underline decoration-rose-500">{pendingCount} tugas</span> tertunda.
                         </p>
                     </div>
                     <div className="flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-2 rounded-full text-xs font-medium border border-white/10 shrink-0">
@@ -217,9 +217,9 @@ export default function StudentDashboardPage() {
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.bg}`}>
                                 {s.icon}
                             </div>
-                            <span className="text-3xl font-black text-[#0D1B2A]">{s.value}</span>
+                            <span className="text-3xl font-black text-[#0D1B2A] tracking-tighter">{s.value}</span>
                         </div>
-                        <p className="text-sm text-gray-500 mt-4 font-semibold">{s.label}</p>
+                        <p className="text-xs text-gray-700 mt-4 font-bold uppercase tracking-wide">{s.label}</p>
                     </div>
                 ))}
             </div>

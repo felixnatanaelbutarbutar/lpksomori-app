@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -106,6 +108,33 @@ func main() {
 				db.Where("key = ?", k).Assign(models.AppSetting{Value: v}).FirstOrCreate(&models.AppSetting{Key: k})
 			}
 			c.JSON(http.StatusOK, gin.H{"message": "Settings updated"})
+		})
+
+		api.GET("/settings/backup", func(c *gin.Context) {
+			host := getEnv("DB_HOST", "localhost")
+			port := getEnv("DB_PORT", "5432")
+			user := getEnv("DB_USER", "lpkmori")
+			password := getEnv("DB_PASSWORD", "lpkmori_secret")
+			dbname := getEnv("DB_NAME", "lpkmori_db")
+
+			cmd := exec.Command("pg_dump", "-h", host, "-p", port, "-U", user, "-d", dbname, "--clean", "--if-exists", "--no-owner", "--no-acl")
+			cmd.Env = append(os.Environ(), "PGPASSWORD="+password)
+
+			var out bytes.Buffer
+			var stderr bytes.Buffer
+			cmd.Stdout = &out
+			cmd.Stderr = &stderr
+
+			if err := cmd.Run(); err != nil {
+				log.Println("Backup error:", err.Error(), stderr.String())
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal melakukan backup database: " + stderr.String()})
+				return
+			}
+
+			filename := fmt.Sprintf("backup_lpkmori_db_%s.sql", time.Now().Format("20060102_150405"))
+			c.Header("Content-Disposition", "attachment; filename="+filename)
+			c.Header("Content-Type", "application/sql")
+			c.Data(http.StatusOK, "application/sql", out.Bytes())
 		})
 
 		// ─── Platform Stats (Admin Dashboard) ────────────────────────────────────

@@ -241,7 +241,7 @@ export default function MyClassPage() {
                                     {classDetail?.academic_year.year_range}
                                 </span>
                             </div>
-                            <h1 className="text-3xl font-serif font-black">{classDetail?.name || "Memuat..."}</h1>
+                            <h1 className="text-3xl font-serif font-black" style={{ color: "white" }}>{classDetail?.name || "Memuat..."}</h1>
                             <p className="text-white/80 font-medium mt-1">
                                 Bab {classDetail?.bab_start} — {classDetail?.bab_end}
                             </p>

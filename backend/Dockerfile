@@ -16,6 +16,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /app/api-server ./cmd/api || true
 
 FROM alpine:3.19
 WORKDIR /app
+RUN apk add --no-cache postgresql-client
 COPY --from=builder /app/api-server .
 # Assuming .env exists or gets mounted
 # Default gin to release

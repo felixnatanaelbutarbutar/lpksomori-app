@@ -20,6 +20,7 @@ import {
     ChevronRight,
     Camera,
 } from "lucide-react";
+import Link from "next/link";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL
     ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1`
@@ -201,10 +202,6 @@ export default function UsersPage() {
 
     // Create modal
     const [showCreate, setShowCreate] = useState(false);
-    const [createRole, setCreateRole] = useState<"teacher" | "student">("teacher");
-    const [form, setForm] = useState({ email: "", password: "", name: "", nis: "", active: true, place_of_birth: "", date_of_birth: "", gender: "L", phone: "", address: "" });
-    const [formError, setFormError] = useState("");
-    const [formLoading, setFormLoading] = useState(false);
 
     // Edit modal
     const [editUser, setEditUser] = useState<User | null>(null);
@@ -249,40 +246,7 @@ export default function UsersPage() {
     const studentCount = users.filter((u) => u.role === "student").length;
     const activeCount = users.filter((u) => u.active).length;
 
-    const handleCreate = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setFormError("");
-        setFormLoading(true);
-        try {
-            const res = await fetch(`${API_BASE}/auth/register`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    email: form.email,
-                    password: form.password,
-                    role: createRole,
-                    name: form.name || undefined,
-                    nis: form.nis || undefined,
-                    active: form.active,
-                    place_of_birth: form.place_of_birth || undefined,
-                    date_of_birth: form.date_of_birth || undefined,
-                    gender: form.gender,
-                    phone: form.phone || undefined,
-                    address: form.address || undefined,
-                }),
-            });
-            const json = await res.json();
-            if (!res.ok) throw new Error(json.error ?? "Gagal membuat akun");
-            setShowCreate(false);
-            setForm({ email: "", password: "", name: "", nis: "", active: true, place_of_birth: "", date_of_birth: "", gender: "L", phone: "", address: "" });
-            fetchUsers();
-            showToast(`Akun ${createRole === "teacher" ? "Guru" : "Siswa"} berhasil dibuat! 🎉`);
-        } catch (err: unknown) {
-            setFormError(err instanceof Error ? err.message : "Error");
-        } finally {
-            setFormLoading(false);
-        }
-    };
+
 
     const handleEdit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -625,154 +589,32 @@ export default function UsersPage() {
                 )}
             </div>
 
-            {/* ── Create User Modal ── */}
+            {/* ── Create User Role Selector Popup ── */}
             {showCreate && (
                 <Modal
                     title="Tambah Pengguna Baru"
-                    subtitle="Buat akun Guru atau Siswa"
-                    onClose={() => { setShowCreate(false); setFormError(""); }}
+                    subtitle="Pilih peran pengguna yang akan didaftarkan"
+                    onClose={() => setShowCreate(false)}
                 >
-                    {/* Role selector */}
-                    <div className="grid grid-cols-2 gap-2 mb-6">
-                        {(["teacher", "student"] as const).map((r) => (
-                            <button
-                                key={r}
-                                type="button"
-                                onClick={() => setCreateRole(r)}
-                                className={`flex items-center gap-2.5 p-3.5 rounded-2xl border-2 transition-all text-left ${createRole === r
-                                    ? "border-[#006D77] bg-[#006D77]/5 text-[#006D77]"
-                                    : "border-gray-100 bg-gray-50 text-gray-400 hover:border-gray-200"
-                                    }`}
-                            >
-                                <span className="text-xl">{r === "teacher" ? "👨‍🏫" : "👤"}</span>
-                                <div>
-                                    <p className="text-xs font-bold">{r === "teacher" ? "Guru" : "Siswa"}</p>
-                                    <p className="text-[10px] opacity-70">{r === "teacher" ? "先生" : "学生"}</p>
-                                </div>
-                                {createRole === r && (
-                                    <ChevronRight size={14} className="ml-auto" />
-                                )}
-                            </button>
-                        ))}
+                    <div className="grid grid-cols-2 gap-4 pb-4">
+                        <Link 
+                            href="/dashboard/users/create?role=teacher"
+                            className="flex flex-col items-center justify-center p-6 bg-amber-50 rounded-[24px] border border-amber-100 hover:border-amber-400 hover:shadow-lg transition-all group decoration-transparent hover:no-underline"
+                        >
+                            <span className="text-4xl mb-3 group-hover:scale-110 transition-transform block">👨‍🏫</span>
+                            <span className="font-bold text-amber-900 block text-center">Guru <br/><span className="text-[10px] opacity-70">先生</span></span>
+                            <span className="text-[10px] mt-2 text-amber-600 font-semibold uppercase tracking-widest bg-amber-200/50 px-2 py-1 rounded-md">Pilih</span>
+                        </Link>
+                        
+                        <Link 
+                            href="/dashboard/users/create?role=student"
+                            className="flex flex-col items-center justify-center p-6 bg-indigo-50 rounded-[24px] border border-indigo-100 hover:border-indigo-400 hover:shadow-lg transition-all group decoration-transparent hover:no-underline"
+                        >
+                            <span className="text-4xl mb-3 group-hover:scale-110 transition-transform block">🎓</span>
+                            <span className="font-bold text-indigo-900 block text-center">Siswa <br/><span className="text-[10px] opacity-70">学生</span></span>
+                            <span className="text-[10px] mt-2 text-indigo-600 font-semibold uppercase tracking-widest bg-indigo-200/50 px-2 py-1 rounded-md">Pilih</span>
+                        </Link>
                     </div>
-
-                    {formError && (
-                        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3 mb-5">
-                            <X size={13} className="shrink-0" />
-                            {formError}
-                        </div>
-                    )}
-
-                    <form onSubmit={handleCreate} className="space-y-4">
-                        <Field label="Email" required>
-                            <input
-                                type="email"
-                                required
-                                placeholder="contoh@email.com"
-                                value={form.email}
-                                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                                className={inputCls}
-                            />
-                        </Field>
-                        <Field label="Password" required>
-                            <PasswordInput
-                                placeholder="Min. 6 karakter"
-                                value={form.password}
-                                onChange={(v) => setForm({ ...form, password: v })}
-                            />
-                        </Field>
-                        <Field label="Nama Lengkap">
-                            <input
-                                type="text"
-                                placeholder="Nama lengkap"
-                                value={form.name}
-                                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                className={inputCls}
-                            />
-                        </Field>
-                        {createRole === "student" ? (
-                            <Field label="NIS / NISN">
-                                <input
-                                    type="text"
-                                    placeholder="Nomor Induk Siswa"
-                                    value={form.nis}
-                                    onChange={(e) => setForm({ ...form, nis: e.target.value })}
-                                    className={inputCls}
-                                />
-                            </Field>
-                        ) : (
-                            <Field label="NUPTK / NIP (Opsional)">
-                                <input
-                                    type="text"
-                                    placeholder="NUPTK atau NIP"
-                                    value={form.nis}
-                                    onChange={(e) => setForm({ ...form, nis: e.target.value })}
-                                    className={inputCls}
-                                />
-                            </Field>
-                        )}
-                        <div className="grid grid-cols-2 gap-3">
-                            <Field label="Tempat Lahir">
-                                <input type="text" placeholder="Kota" value={form.place_of_birth} onChange={(e) => setForm({ ...form, place_of_birth: e.target.value })} className={inputCls} />
-                            </Field>
-                            <Field label="Tanggal Lahir">
-                                <input type="date" value={form.date_of_birth} onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })} className={inputCls} />
-                            </Field>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <Field label="Jenis Kelamin">
-                                <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} className={inputCls + " appearance-none bg-white"}>
-                                    <option value="L">Laki-laki</option>
-                                    <option value="P">Perempuan</option>
-                                </select>
-                            </Field>
-                            <Field label="No. Telepon / WA">
-                                <input type="text" placeholder="08..." value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={inputCls} />
-                            </Field>
-                        </div>
-                        <Field label="Alamat">
-                            <textarea placeholder="Alamat lengkap" rows={2} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className={inputCls} />
-                        </Field>
-                        <div className="flex items-center gap-3 pt-1 px-1">
-                            <button
-                                type="button"
-                                role="switch"
-                                aria-checked={form.active}
-                                onClick={() => setForm({ ...form, active: !form.active })}
-                                className={`relative w-10 h-6 rounded-full transition-all ${form.active ? "bg-emerald-500" : "bg-gray-200"}`}
-                            >
-                                <span
-                                    className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${form.active ? "translate-x-4" : "translate-x-0"}`}
-                                />
-                            </button>
-                            <span className="text-sm text-gray-600">
-                                {form.active ? "Akun langsung aktif" : "Akun dinonaktifkan"}
-                            </span>
-                        </div>
-
-                        <div className="flex gap-3 pt-3">
-                            <button
-                                type="button"
-                                onClick={() => { setShowCreate(false); setFormError(""); }}
-                                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
-                            >
-                                Batal
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={formLoading}
-                                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60 shadow-sm"
-                                style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}
-                            >
-                                {formLoading ? (
-                                    <span className="flex items-center justify-center gap-2">
-                                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        Menyimpan...
-                                    </span>
-                                ) : "Buat Akun"}
-                            </button>
-                        </div>
-                    </form>
                 </Modal>
             )}
 

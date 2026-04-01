@@ -165,7 +165,7 @@ export default function StudentExamPage() {
             <div className="bg-[#1a0f2e] rounded-3xl p-8 relative overflow-hidden shadow-lg border border-purple-900/30">
                 <div className="relative z-10 flex flex-col md:flex-row gap-6 justify-between items-start">
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-serif font-bold text-white mb-2">{exam.title}</h1>
+                        <h1 className="text-2xl md:text-3xl font-serif font-bold text-white mb-2" style={{ color: "white" }}>{exam.title}</h1>
                         <p className="text-white/70 max-w-2xl text-sm leading-relaxed">{exam.description || "Selamat mengerjakan. Kerjakan dengan jujur."}</p>
                     </div>
                     {(exam.start_time || exam.end_time) && (
