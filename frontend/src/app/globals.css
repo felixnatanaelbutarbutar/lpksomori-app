@@ -358,3 +358,32 @@ select:focus-visible {
 .rich-quill-editor .ql-toolbar .ql-picker-label.ql-active {
   color: var(--accent);
 }
+
+/* ── Google Translate Overrides ──────────────────────────────── */
+/* Hide the top banner */
+.goog-te-banner-frame.skiptranslate {
+  display: none !important;
+}
+
+/* Fix body shifting due to hidden banner */
+body {
+  top: 0px !important;
+}
+
+/* Hide the default Google Translate widget box */
+#google_translate_element {
+  display: none !important;
+}
+
+/* Hide the tooltip that appears on hover */
+.goog-tooltip {
+  display: none !important;
+}
+.goog-tooltip:hover {
+  display: none !important;
+}
+.goog-text-highlight {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}

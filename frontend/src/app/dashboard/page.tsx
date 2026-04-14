@@ -9,6 +9,7 @@ import {
     RefreshCw, BarChart2, Gift, PartyPopper
 } from "lucide-react";
 import { parseRole, type Role, hasPermission } from "../../lib/roleHelper";
+import { useLanguage } from "../../i18n/LanguageContext";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL
     ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1`
@@ -40,8 +41,9 @@ interface DashboardStats {
 
 // ─── Mini bar chart (pure CSS/SVG, no lib needed) ───────────────────────────
 function MiniBarChart({ data }: { data: ClassDist[] }) {
+    const { t } = useLanguage();
     if (!data || data.length === 0) return (
-        <div className="flex items-center justify-center h-32 text-xs text-gray-300">Belum ada data kelas</div>
+        <div className="flex items-center justify-center h-32 text-xs text-gray-300">{t("dashboard.noClassData")}</div>
     );
     const max = Math.max(...data.map(d => d.count), 1);
     const COLORS = ["#006D77", "#4ECDC4", "#E9C46A", "#F4A261", "#6D5ACD", "#2196F3", "#43A047", "#E53935"];
@@ -71,15 +73,16 @@ function MiniBarChart({ data }: { data: ClassDist[] }) {
 
 // ─── Grade Progress Chart (Line Chart) ──────────────────────────────────────
 function GradeProgressChart({ data }: { data: GradeHistory[] }) {
+    const { t } = useLanguage();
     const [hoverIndex, setHoverIndex] = useState<number | null>(null);
     if (!data || data.length < 2) {
         return (
             <div className="flex flex-col items-center justify-center h-48 opacity-40 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
                 <TrendingUp size={32} className="mb-2 text-gray-300" />
                 <p className="text-[10px] uppercase font-bold text-gray-400">
-                    {data.length === 1 ? "Butuh data dari minimal 2 kelas" : "Belum ada riwayat nilai akhir"}
+                    {data.length === 1 ? t("dashboard.needMoreData") : t("dashboard.noScoreHistory")}
                 </p>
-                <p className="text-[9px] text-gray-400 mt-1 px-4 text-center leading-relaxed">Grafik progress akan muncul setelah Anda memiliki minimal 2 nilai akhir dari kelas yang diikuti</p>
+                <p className="text-[9px] text-gray-400 mt-1 px-4 text-center leading-relaxed">{t("dashboard.chartHelpText")}</p>
             </div>
         );
     }
@@ -174,8 +177,8 @@ function GradeProgressChart({ data }: { data: GradeHistory[] }) {
                         <div className="w-2 h-2 rounded-full bg-[#006D77]" />
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">{data[hoverIndex].class_name}</p>
                     </div>
-                    <p className="text-2xl font-black text-[#0D1B2A] leading-none mb-1">{data[hoverIndex].final_score}<span className="text-xs font-normal text-gray-400 ml-1">pts</span></p>
-                    <p className="text-[9px] text-[#006D77] font-bold">Enrolled: {new Date(data[hoverIndex].enrolled_at).toLocaleDateString("id-ID", { month: 'long', year: 'numeric' })}</p>
+                    <p className="text-2xl font-black text-[#0D1B2A] leading-none mb-1">{data[hoverIndex].final_score}<span className="text-xs font-normal text-gray-400 ml-1">{t("dashboard.points")}</span></p>
+                    <p className="text-[9px] text-[#006D77] font-bold">{t("dashboard.enrolled")}: {new Date(data[hoverIndex].enrolled_at).toLocaleDateString("id-ID", { month: 'long', year: 'numeric' })}</p>
                 </div>
             )}
         </div>
@@ -184,11 +187,12 @@ function GradeProgressChart({ data }: { data: GradeHistory[] }) {
 
 // ─── Activity ring (donut chart) ────────────────────────────────────────────
 function ActivityRing({ assignments, exams, submissions }: { assignments: number; exams: number; submissions: number; }) {
+    const { t } = useLanguage();
     const total = assignments + exams + submissions || 1;
     const segments = [
-        { value: assignments, color: "#006D77", label: "Tugas" },
-        { value: exams, color: "#E9C46A", label: "Ujian" },
-        { value: submissions, color: "#4ECDC4", label: "Submit" },
+        { value: assignments, color: "#006D77", label: t("dashboard.assignments") },
+        { value: exams, color: "#E9C46A", label: t("dashboard.exams") },
+        { value: submissions, color: "#4ECDC4", label: t("dashboard.submissions") },
     ];
     const cx = 50; const cy = 50; const r = 36; const stroke = 14;
     const circumference = 2 * Math.PI * r;
@@ -216,7 +220,7 @@ function ActivityRing({ assignments, exams, submissions }: { assignments: number
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <span className="text-lg font-black text-gray-800">{total}</span>
-                    <span className="text-[8px] text-gray-400 text-center leading-tight">total</span>
+                    <span className="text-[8px] text-gray-400 text-center leading-tight">{t("dashboard.total")}</span>
                 </div>
             </div>
             <div className="space-y-2">
@@ -225,7 +229,7 @@ function ActivityRing({ assignments, exams, submissions }: { assignments: number
                         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: s.color }} />
                         <div className="min-w-0">
                             <p className="text-xs font-semibold text-gray-700">{s.label}</p>
-                            <p className="text-[10px] text-gray-400">{s.value} item</p>
+                            <p className="text-[10px] text-gray-400">{s.value} {t("dashboard.items")}</p>
                         </div>
                     </div>
                 ))}
@@ -276,10 +280,11 @@ function StatCard({ label, labelJa, value, sub, icon: Icon, color, bg, trend, lo
 
 // ─── Leaderboard ────────────────────────────────────────────────────────────
 function Leaderboard({ students }: { students: DashboardStats["top_students"] }) {
+    const { t, lang } = useLanguage();
     if (!students || students.length === 0) return (
         <div className="flex flex-col items-center justify-center py-10 opacity-30">
             <Star size={32} className="mb-2 text-gray-300" />
-            <p className="text-[10px] uppercase font-bold text-gray-400">Belum ada data peringkat</p>
+            <p className="text-[10px] uppercase font-bold text-gray-400">{t("dashboard.noRankData")}</p>
         </div>
     );
 
@@ -307,13 +312,13 @@ function Leaderboard({ students }: { students: DashboardStats["top_students"] })
                     
                     <div className="text-center w-full">
                         <p className="text-sm font-bold truncate text-[#0D1B2A] px-2" title={s.name}>{s.name}</p>
-                        <p className="text-xs text-gray-400 mt-1 mb-2">Performa: <span className="font-bold text-[#0D1B2A]">{Math.round(s.score)}%</span></p>
+                        <p className="text-xs text-gray-400 mt-1 mb-2">{t("dashboard.performance")}: <span className="font-bold text-[#0D1B2A]">{Math.round(s.score)}%</span></p>
 
                         <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                             <div className="h-full transition-all duration-1000" style={{ width: `${Math.min(s.score, 100)}%`, background: i === 0 ? "#F59E0B" : "#006D77" }} />
                         </div>
                         <div className="mt-3 text-[10px] font-semibold flex items-center justify-center gap-1" style={{ color: i === 0 ? "#D97706" : "var(--text-muted)" }}>
-                             <CheckCircle2 size={12} className={i === 0 ? "text-amber-500" : "text-[#006D77]"} /> {i === 0 ? "Top Achiever 👑" : "Excellent"}
+                             <CheckCircle2 size={12} className={i === 0 ? "text-amber-500" : "text-[#006D77]"} /> {i === 0 ? t("dashboard.topAchiever") : t("dashboard.excellent")}
                         </div>
                     </div>
                 </div>

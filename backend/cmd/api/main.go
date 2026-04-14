@@ -72,6 +72,7 @@ func main() {
 	userSvc := service.NewUserService(db)
 	assignSvc := service.NewAssignmentService(db)
 	gradeSvc := service.NewGradeService(db)
+	translationSvc := service.NewTranslationService()
 	certSvc := service.NewCertificateService(db, getEnv("BASE_URL", "http://localhost:8080"))
 
 	router := gin.Default()
@@ -90,7 +91,7 @@ func main() {
 	{
 		// Health Check
 		api.GET("/ping", func(c *gin.Context) {
-			c.JSON(http.StatusOK, gin.H{"message": "pong", "status": "LPK Mori API is live"})
+			c.JSON(http.StatusOK, gin.H{"message": "Test", "status": "LPK Mori API is live bos serius"})
 		})
 
 		// ─── App Settings (Super Admin) ──────────────────────────────────────────
@@ -1515,11 +1516,20 @@ func main() {
 						return
 					}
 					creatorID, _ := c.Get(middleware.CtxUserID)
+					// ── Auto-Translate Dynamic Content ──
+					titleEn, titleJa := translationSvc.AutoTranslate(input.Title)
+					contentEn, contentJa := translationSvc.AutoTranslate(input.Content)
+
+					if input.TitleJa != "" { titleJa = input.TitleJa } // Allow manual override from API
+					if input.ContentJa != "" { contentJa = input.ContentJa }
+
 					ann := models.Announcement{
 						Title:       input.Title,
-						TitleJa:     input.TitleJa,
+						TitleEn:     titleEn,
+						TitleJa:     titleJa,
 						Content:     input.Content,
-						ContentJa:   input.ContentJa,
+						ContentEn:   contentEn,
+						ContentJa:   contentJa,
 						CreatorID:   creatorID.(int),
 						CreatorRole: creatorRole.(string),
 						IsPinned:    input.IsPinned,

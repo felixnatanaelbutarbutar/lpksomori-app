@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { StudentProgressChart } from "../../../../components/StudentProgressChart";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 const API = "http://localhost:8080/api/v1";
 
@@ -73,6 +74,7 @@ const LEVEL_COLORS = [
 ];
 
 export default function StudentDashboardPage() {
+    const { t, lang } = useLanguage();
     const [data, setData] = useState<StudentDashboard | null>(null);
     const [loading, setLoading] = useState(true);
     const [userName, setUserName] = useState("");
@@ -125,6 +127,8 @@ export default function StudentDashboardPage() {
 
     const firstName = userName.split(" ")[0];
     const greeting = (() => {
+        if (lang === "en") return "Welcome";
+        if (lang === "ja") return "ようこそ";
         const h = new Date().getHours();
         if (h < 11) return "Selamat pagi";
         if (h < 15) return "Selamat siang";

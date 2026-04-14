@@ -6,6 +6,7 @@ import {
     CheckSquare, AlignLeft, Paperclip, BookOpen, Upload,
     Package, FileText, Search, ChevronRight
 } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 const API = "http://localhost:8080/api/v1";
 
@@ -35,10 +36,17 @@ interface QuestionBank {
 interface Exam { id: number; title: string; class_id: number; }
 interface ClassModel { id: number; name: string; }
 
-const TYPE_CFG: Record<string, { label: string; icon: React.ReactNode; cls: string }> = {
-    multiple_choice: { label: "Pilihan Ganda", icon: <CheckSquare size={13} />, cls: "bg-blue-50 text-blue-600 border-blue-100 border" },
-    essay:           { label: "Essay",         icon: <AlignLeft    size={13} />, cls: "bg-purple-50 text-purple-600 border-purple-100 border" },
-    file_upload:     { label: "Upload File",   icon: <Paperclip    size={13} />, cls: "bg-amber-50 text-amber-600 border-amber-100 border" },
+// Note: TYPE_CFG is now dynamic and defined in render (or passed via context) to support t()
+type QType = "multiple_choice" | "essay" | "file_upload";
+const TYPE_COLORS: Record<string, string> = {
+    multiple_choice: "bg-blue-50 text-blue-600 border-blue-100 border",
+    essay: "bg-purple-50 text-purple-600 border-purple-100 border",
+    file_upload: "bg-amber-50 text-amber-600 border-amber-100 border"
+};
+const TYPE_ICONS: Record<string, React.ReactNode> = {
+    multiple_choice: <CheckSquare size={13} />,
+    essay: <AlignLeft size={13} />,
+    file_upload: <Paperclip size={13} />
 };
 
 const OPTION_LETTERS = ["A", "B", "C", "D", "E"];
@@ -61,9 +69,10 @@ function Modal({ title, onClose, children, wide }: { title: string; onClose: () 
 }
 
 // ─── McOptionsEditor ──────────────────────────────────────────────────────────
-function McOptionsEditor({ options, onChange }: {
+function McOptionsEditor({ options, onChange, optPh, trueLabel, falseLabel, addBtnLabel }: {
     options: Array<{ text: string; is_correct: boolean }>;
     onChange: (opts: Array<{ text: string; is_correct: boolean }>) => void;
+    optPh: string; trueLabel: string; falseLabel: string; addBtnLabel: string;
 }) {
     const set = (i: number, key: "text" | "is_correct", val: string | boolean) => {
         const next = options.map((o, j) => j === i ? { ...o, [key]: val } : (key === "is_correct" && val ? { ...o, is_correct: false } : o));
@@ -78,7 +87,7 @@ function McOptionsEditor({ options, onChange }: {
                     <span className="w-6 h-6 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-[11px] font-bold text-gray-500 shrink-0">{OPTION_LETTERS[i]}</span>
                     <input
                         className="flex-1 px-3 py-2 text-sm border border-gray-100 rounded-xl bg-gray-50 focus:outline-none focus:border-[#006D77] focus:bg-white transition-colors"
-                        placeholder={`Pilihan ${OPTION_LETTERS[i]}`}
+                        placeholder={`${optPh}${OPTION_LETTERS[i]}`}
                         value={o.text}
                         onChange={e => set(i, "text", e.target.value)}
                     />
@@ -87,7 +96,7 @@ function McOptionsEditor({ options, onChange }: {
                         onClick={() => set(i, "is_correct", !o.is_correct)}
                         className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-colors whitespace-nowrap ${o.is_correct ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-gray-50 text-gray-400 border-gray-100 hover:border-gray-200"}`}
                     >
-                        {o.is_correct ? "✓ Benar" : "Benar?"}
+                        {o.is_correct ? trueLabel : falseLabel}
                     </button>
                     <button type="button" onClick={() => remove(i)} className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-gray-300 hover:text-red-500 transition-colors">
                         <X size={13} />
@@ -96,7 +105,7 @@ function McOptionsEditor({ options, onChange }: {
             ))}
             {options.length < 5 && (
                 <button type="button" onClick={add} className="text-[11px] font-semibold text-[#006D77] hover:underline mt-1">
-                    + Tambah Pilihan
+                    {addBtnLabel}
                 </button>
             )}
         </div>
@@ -104,6 +113,9 @@ function McOptionsEditor({ options, onChange }: {
 }
 
 export default function QuestionBankPage() {
+    const { t } = useLanguage();
+    // We pass translation strings to McOptionsEditor via closure, or we redefine it inside but we can just use another approach to inject labels if it's already defined outside. Wait, McOptionsEditor is outside! 
+    // Let's bring McOptionsEditor inside component so it has access to `t`, or pass labels to it. I'll pass labels to it.
     const token = typeof window !== "undefined" ? localStorage.getItem("mori_token") ?? "" : "";
 
     // ── State ──────────────────────────────────────────────────────────────────
@@ -329,38 +341,43 @@ export default function QuestionBankPage() {
     const QForm = ({ onSubmit, isEdit }: { onSubmit: (e: React.FormEvent) => void; isEdit?: boolean }) => (
         <form onSubmit={onSubmit} className="space-y-4">
             <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5">Tipe Soal</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5">{t("questionBank.qTypeLabel")}</label>
                 <div className="grid grid-cols-3 gap-2">
-                    {(["multiple_choice", "essay", "file_upload"] as const).map(t => (
-                        <button
-                            key={t} type="button"
-                            onClick={() => setQForm(f => ({ ...f, question_type: t }))}
-                            className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border text-xs font-bold transition-all ${qForm.question_type === t ? "border-[#006D77] bg-[#006D77]/5 text-[#006D77]" : "border-gray-100 bg-gray-50 text-gray-400 hover:border-gray-200"}`}
-                        >
-                            {TYPE_CFG[t].icon}
-                            <span className="text-[10px]">{TYPE_CFG[t].label}</span>
-                        </button>
-                    ))}
+                    {(["multiple_choice", "essay", "file_upload"] as QType[]).map(type => {
+                        const typeLabel = type === "multiple_choice" ? t("questionBank.typeMc") : type === "essay" ? t("questionBank.typeEssay") : t("questionBank.typeUpload");
+                        return (
+                            <button
+                                key={type} type="button"
+                                onClick={() => setQForm(f => ({ ...f, question_type: type }))}
+                                className={`flex flex-col items-center gap-1.5 py-3 rounded-xl border text-xs font-bold transition-all ${qForm.question_type === type ? "border-[#006D77] bg-[#006D77]/5 text-[#006D77]" : "border-gray-100 bg-gray-50 text-gray-400 hover:border-gray-200"}`}
+                            >
+                                {TYPE_ICONS[type]}
+                                <span className="text-[10px]">{typeLabel}</span>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
             <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5">Teks Soal <span className="text-red-400">*</span></label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5">{t("questionBank.qTextLabel")}</label>
                 <textarea
                     required rows={3}
                     className="w-full px-3 py-2.5 text-sm border border-gray-100 rounded-xl bg-gray-50 focus:outline-none focus:border-[#006D77] focus:bg-white transition-colors resize-none"
-                    placeholder="Tulis pertanyaan di sini..."
+                    placeholder={t("questionBank.qTextPh")}
                     value={qForm.text}
                     onChange={e => setQForm(f => ({ ...f, text: e.target.value }))}
                 />
             </div>
             {qForm.question_type === "multiple_choice" && (
                 <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Pilihan Jawaban</label>
-                    <McOptionsEditor options={qForm.options} onChange={opts => setQForm(f => ({ ...f, options: opts }))} />
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">{t("questionBank.mcLabel")}</label>
+                    <McOptionsEditor options={qForm.options} onChange={opts => setQForm(f => ({ ...f, options: opts }))} 
+                        optPh={t("questionBank.mcOptPh")} trueLabel={t("questionBank.btnTrue")} falseLabel={t("questionBank.btnFalse")} addBtnLabel={t("questionBank.addOptBtn")}
+                    />
                 </div>
             )}
             <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5">Poin</label>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5">{t("questionBank.pointsLabel")}</label>
                 <input
                     type="number" min={1} max={100}
                     className="w-24 px-3 py-2 text-sm border border-gray-100 rounded-xl bg-gray-50 focus:outline-none focus:border-[#006D77] focus:bg-white transition-colors"
@@ -370,10 +387,10 @@ export default function QuestionBankPage() {
             </div>
             {qFormError && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{qFormError}</p>}
             <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setShowAddQ(false); setEditQ(null); }} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">Batal</button>
+                <button type="button" onClick={() => { setShowAddQ(false); setEditQ(null); }} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">{t("questionBank.cancel")}</button>
                 <button type="submit" disabled={qFormLoading}
                     className="px-5 py-2.5 bg-[#006D77] text-white text-sm font-bold rounded-xl hover:bg-[#005f68] disabled:opacity-50 transition-colors">
-                    {qFormLoading ? "Menyimpan..." : (isEdit ? "Simpan Perubahan" : "Tambah Soal")}
+                    {qFormLoading ? t("questionBank.saving") : (isEdit ? t("questionBank.saveQBtn") : t("questionBank.createQBtn"))}
                 </button>
             </div>
         </form>
@@ -389,15 +406,15 @@ export default function QuestionBankPage() {
                         <div className="w-10 h-10 rounded-xl bg-[#006D77]/10 flex items-center justify-center text-[#006D77]">
                             <Database size={20} />
                         </div>
-                        Bank Soal
+                        {t("questionBank.title")}
                     </h1>
-                    <p className="text-sm text-gray-400">Kelola paket soal reusable yang bisa diimpor ke ujian manapun.</p>
+                    <p className="text-sm text-gray-400">{t("questionBank.subtitle")}</p>
                 </div>
                 <button
                     onClick={() => { setBankForm({ title: "", description: "" }); setBankFormError(""); setShowCreateBank(true); }}
                     className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold text-white shadow-lg shadow-[#006D77]/20 hover:scale-105 active:scale-95 transition-all bg-[#006D77] shrink-0"
                 >
-                    <Plus size={18} /> Buat Paket Soal
+                    <Plus size={18} /> {t("questionBank.createBankBtn")}
                 </button>
             </div>
 
@@ -410,7 +427,7 @@ export default function QuestionBankPage() {
                         <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
                         <input
                             className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-100 rounded-xl bg-white focus:outline-none focus:border-[#006D77] transition-colors"
-                            placeholder="Cari paket soal..."
+                            placeholder={t("questionBank.searchPlaceholder")}
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                         />
@@ -422,8 +439,8 @@ export default function QuestionBankPage() {
                         ) : filtered.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-12 gap-2">
                                 <Package size={32} className="text-gray-200" />
-                                <p className="text-sm text-gray-400 font-semibold">Belum ada paket soal</p>
-                                <p className="text-xs text-gray-300">Klik &quot;Buat Paket Soal&quot; untuk memulai</p>
+                                <p className="text-sm text-gray-400 font-semibold">{t("questionBank.noBankTitle")}</p>
+                                <p className="text-xs text-gray-300">{t("questionBank.noBankSub")}</p>
                             </div>
                         ) : (
                             <div className="divide-y divide-gray-50">
@@ -438,7 +455,7 @@ export default function QuestionBankPage() {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className={`font-bold text-sm truncate ${selectedBank?.id === bank.id ? "text-[#006D77]" : "text-[#0D1B2A]"}`}>{bank.title}</p>
-                                            <p className="text-[11px] text-gray-400">{bank.questions?.length ?? 0} soal</p>
+                                            <p className="text-[11px] text-gray-400">{bank.questions?.length ?? 0} {t("questionBank.questions")}</p>
                                         </div>
                                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button
@@ -463,8 +480,8 @@ export default function QuestionBankPage() {
                     {!selectedBank ? (
                         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-24 gap-3 text-center">
                             <Database size={44} className="text-gray-100" />
-                            <p className="font-semibold text-gray-400">Pilih paket soal dari daftar</p>
-                            <p className="text-xs text-gray-300 max-w-xs">Klik salah satu paket di sebelah kiri untuk melihat dan mengelola soal di dalamnya.</p>
+                            <p className="font-semibold text-gray-400">{t("questionBank.selectBankTitle")}</p>
+                            <p className="text-xs text-gray-300 max-w-xs">{t("questionBank.selectBankSub")}</p>
                         </div>
                     ) : loadingDetail ? (
                         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex justify-center py-24">
@@ -482,20 +499,20 @@ export default function QuestionBankPage() {
                                         <h2 className="font-black text-lg text-[#0D1B2A]">{selectedBank.title}</h2>
                                     </div>
                                     {selectedBank.description && <p className="text-xs text-gray-400">{selectedBank.description}</p>}
-                                    <p className="text-xs text-gray-300 mt-1">{selectedBank.questions?.length ?? 0} soal tersimpan</p>
+                                    <p className="text-xs text-gray-300 mt-1">{selectedBank.questions?.length ?? 0} {t("questionBank.savedQuestions")}</p>
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                     <button
                                         onClick={openImport}
                                         className="flex items-center gap-1.5 px-4 py-2 bg-emerald-50 text-emerald-700 font-bold text-xs rounded-xl hover:bg-emerald-100 transition-colors border border-emerald-100"
                                     >
-                                        <Upload size={14} /> Import ke Ujian
+                                        <Upload size={14} /> {t("questionBank.importToExamBtn")}
                                     </button>
                                     <button
                                         onClick={openAddQ}
                                         className="flex items-center gap-1.5 px-4 py-2 bg-[#006D77] text-white font-bold text-xs rounded-xl hover:bg-[#005f68] transition-colors"
                                     >
-                                        <Plus size={14} /> Tambah Soal
+                                        <Plus size={14} /> {t("questionBank.addQuestionBtn")}
                                     </button>
                                 </div>
                             </div>
@@ -505,23 +522,23 @@ export default function QuestionBankPage() {
                                 {(selectedBank.questions?.length ?? 0) === 0 ? (
                                     <div className="flex flex-col items-center justify-center py-16 gap-3">
                                         <FileText size={36} className="text-gray-100" />
-                                        <p className="font-semibold text-gray-400">Belum ada soal</p>
-                                        <button onClick={openAddQ} className="text-xs font-bold text-[#006D77] hover:underline">+ Tambah soal pertama</button>
+                                        <p className="font-semibold text-gray-400">{t("questionBank.noQuestions")}</p>
+                                        <button onClick={openAddQ} className="text-xs font-bold text-[#006D77] hover:underline">{t("questionBank.addFirstQuestion")}</button>
                                     </div>
                                 ) : (
                                     <div className="divide-y divide-gray-50">
                                         {selectedBank.questions.map((q, i) => {
-                                            const cfg = TYPE_CFG[q.question_type];
+                                            const typeLabel = q.question_type === "multiple_choice" ? t("questionBank.typeMc") : q.question_type === "essay" ? t("questionBank.typeEssay") : t("questionBank.typeUpload");
                                             return (
                                                 <div key={q.id} className="px-5 py-4 group hover:bg-gray-50/50 transition-colors">
                                                     <div className="flex items-start gap-3">
                                                         <span className="w-6 h-6 rounded-lg bg-gray-100 flex items-center justify-center text-[11px] font-black text-gray-500 shrink-0 mt-0.5">{i + 1}</span>
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center gap-2 mb-1.5">
-                                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold ${cfg.cls}`}>
-                                                                    {cfg.icon} {cfg.label}
+                                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold ${TYPE_COLORS[q.question_type]}`}>
+                                                                    {TYPE_ICONS[q.question_type]} {typeLabel}
                                                                 </span>
-                                                                <span className="text-[10px] text-gray-400 font-medium">{q.points} poin</span>
+                                                                <span className="text-[10px] text-gray-400 font-medium">{q.points} {t("questionBank.points")}</span>
                                                             </div>
                                                             <p className="text-sm text-[#0D1B2A] font-medium leading-relaxed">{q.text}</p>
                                                             {q.question_type === "multiple_choice" && q.options && (
@@ -555,25 +572,25 @@ export default function QuestionBankPage() {
                 </div>
             </div>
 
-            {/* ── MODALS ── */}
+            {/* MODALS */}
 
             {/* Create Bank */}
             {showCreateBank && (
-                <Modal title="Buat Paket Soal Baru" onClose={() => setShowCreateBank(false)}>
+                <Modal title={t("questionBank.createBankTitle")} onClose={() => setShowCreateBank(false)}>
                     <form onSubmit={handleCreateBank} className="space-y-4">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Nama Paket <span className="text-red-400">*</span></label>
-                            <input required className="w-full px-3 py-2.5 text-sm border border-gray-100 rounded-xl bg-gray-50 focus:outline-none focus:border-[#006D77] focus:bg-white" placeholder="Misal: Ujian Akhir Semester, Ujian Kenaikan..." value={bankForm.title} onChange={e => setBankForm(f => ({ ...f, title: e.target.value }))} />
+                            <label className="block text-xs font-semibold text-gray-500 mb-1.5">{t("questionBank.bankNameLabel")}</label>
+                            <input required className="w-full px-3 py-2.5 text-sm border border-gray-100 rounded-xl bg-gray-50 focus:outline-none focus:border-[#006D77] focus:bg-white" placeholder={t("questionBank.bankNamePh")} value={bankForm.title} onChange={e => setBankForm(f => ({ ...f, title: e.target.value }))} />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Deskripsi</label>
-                            <textarea rows={3} className="w-full px-3 py-2.5 text-sm border border-gray-100 rounded-xl bg-gray-50 focus:outline-none focus:border-[#006D77] focus:bg-white resize-none" placeholder="Deskripsi singkat tentang paket soal ini..." value={bankForm.description} onChange={e => setBankForm(f => ({ ...f, description: e.target.value }))} />
+                            <label className="block text-xs font-semibold text-gray-500 mb-1.5">{t("questionBank.bankDescLabel")}</label>
+                            <textarea rows={3} className="w-full px-3 py-2.5 text-sm border border-gray-100 rounded-xl bg-gray-50 focus:outline-none focus:border-[#006D77] focus:bg-white resize-none" placeholder={t("questionBank.bankDescPh")} value={bankForm.description} onChange={e => setBankForm(f => ({ ...f, description: e.target.value }))} />
                         </div>
                         {bankFormError && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{bankFormError}</p>}
                         <div className="flex justify-end gap-3 pt-2">
-                            <button type="button" onClick={() => setShowCreateBank(false)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Batal</button>
+                            <button type="button" onClick={() => setShowCreateBank(false)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">{t("questionBank.cancel")}</button>
                             <button type="submit" disabled={bankFormLoading} className="px-5 py-2.5 bg-[#006D77] text-white text-sm font-bold rounded-xl hover:bg-[#005f68] disabled:opacity-50">
-                                {bankFormLoading ? "Membuat..." : "Buat Paket"}
+                                {bankFormLoading ? t("questionBank.creating") : t("questionBank.createBtn")}
                             </button>
                         </div>
                     </form>
@@ -582,21 +599,21 @@ export default function QuestionBankPage() {
 
             {/* Edit Bank */}
             {editBank && (
-                <Modal title="Edit Paket Soal" onClose={() => setEditBank(null)}>
+                <Modal title={t("questionBank.editBankTitle")} onClose={() => setEditBank(null)}>
                     <form onSubmit={handleEditBank} className="space-y-4">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Nama Paket <span className="text-red-400">*</span></label>
+                            <label className="block text-xs font-semibold text-gray-500 mb-1.5">{t("questionBank.bankNameLabel")}</label>
                             <input required className="w-full px-3 py-2.5 text-sm border border-gray-100 rounded-xl bg-gray-50 focus:outline-none focus:border-[#006D77] focus:bg-white" value={bankForm.title} onChange={e => setBankForm(f => ({ ...f, title: e.target.value }))} />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Deskripsi</label>
+                            <label className="block text-xs font-semibold text-gray-500 mb-1.5">{t("questionBank.bankDescLabel")}</label>
                             <textarea rows={3} className="w-full px-3 py-2.5 text-sm border border-gray-100 rounded-xl bg-gray-50 focus:outline-none focus:border-[#006D77] focus:bg-white resize-none" value={bankForm.description} onChange={e => setBankForm(f => ({ ...f, description: e.target.value }))} />
                         </div>
                         {bankFormError && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-xl">{bankFormError}</p>}
                         <div className="flex justify-end gap-3 pt-2">
-                            <button type="button" onClick={() => setEditBank(null)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Batal</button>
+                            <button type="button" onClick={() => setEditBank(null)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">{t("questionBank.cancel")}</button>
                             <button type="submit" disabled={bankFormLoading} className="px-5 py-2.5 bg-[#006D77] text-white text-sm font-bold rounded-xl hover:bg-[#005f68] disabled:opacity-50">
-                                {bankFormLoading ? "Menyimpan..." : "Simpan Perubahan"}
+                                {bankFormLoading ? t("questionBank.saving") : t("questionBank.saveBtn")}
                             </button>
                         </div>
                     </form>
@@ -605,16 +622,16 @@ export default function QuestionBankPage() {
 
             {/* Delete Bank Confirm */}
             {deleteBankId && (
-                <Modal title="Hapus Paket Soal" onClose={() => setDeleteBankId(null)}>
+                <Modal title={t("questionBank.deleteBankTitle")} onClose={() => setDeleteBankId(null)}>
                     <div className="text-center space-y-4">
                         <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto"><Trash2 size={24} className="text-red-400" /></div>
                         <div>
-                            <p className="font-semibold text-[#0D1B2A]">Hapus paket soal ini?</p>
-                            <p className="text-sm text-gray-400 mt-1">Semua soal di dalamnya juga akan dihapus. Tindakan ini tidak dapat dibatalkan.</p>
+                            <p className="font-semibold text-[#0D1B2A]">{t("questionBank.deleteBankConfirm")}</p>
+                            <p className="text-sm text-gray-400 mt-1">{t("questionBank.deleteBankDesc")}</p>
                         </div>
                         <div className="flex gap-3 justify-center">
-                            <button onClick={() => setDeleteBankId(null)} className="px-5 py-2.5 text-sm text-gray-500 border border-gray-100 rounded-xl hover:bg-gray-50">Batal</button>
-                            <button onClick={handleDeleteBank} className="px-5 py-2.5 text-sm font-bold text-white bg-red-500 rounded-xl hover:bg-red-600">Hapus</button>
+                            <button onClick={() => setDeleteBankId(null)} className="px-5 py-2.5 text-sm text-gray-500 border border-gray-100 rounded-xl hover:bg-gray-50">{t("questionBank.cancel")}</button>
+                            <button onClick={handleDeleteBank} className="px-5 py-2.5 text-sm font-bold text-white bg-red-500 rounded-xl hover:bg-red-600">{t("questionBank.deleteBtn")}</button>
                         </div>
                     </div>
                 </Modal>
@@ -622,30 +639,30 @@ export default function QuestionBankPage() {
 
             {/* Add Question */}
             {showAddQ && (
-                <Modal title="Tambah Soal ke Bank" onClose={() => setShowAddQ(false)} wide>
+                <Modal title={t("questionBank.addQTitle")} onClose={() => setShowAddQ(false)} wide>
                     <QForm onSubmit={handleAddQ} />
                 </Modal>
             )}
 
             {/* Edit Question */}
             {editQ && (
-                <Modal title="Edit Soal" onClose={() => setEditQ(null)} wide>
+                <Modal title={t("questionBank.editQTitle")} onClose={() => setEditQ(null)} wide>
                     <QForm onSubmit={handleEditQ} isEdit />
                 </Modal>
             )}
 
             {/* Delete Question Confirm */}
             {deleteQId && (
-                <Modal title="Hapus Soal" onClose={() => setDeleteQId(null)}>
+                <Modal title={t("questionBank.deleteQTitle")} onClose={() => setDeleteQId(null)}>
                     <div className="text-center space-y-4">
                         <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto"><Trash2 size={24} className="text-red-400" /></div>
                         <div>
-                            <p className="font-semibold text-[#0D1B2A]">Hapus soal ini?</p>
-                            <p className="text-sm text-gray-400 mt-1">Tindakan ini tidak dapat dibatalkan.</p>
+                            <p className="font-semibold text-[#0D1B2A]">{t("questionBank.deleteQConfirm")}</p>
+                            <p className="text-sm text-gray-400 mt-1">{t("questionBank.deleteQDesc")}</p>
                         </div>
                         <div className="flex gap-3 justify-center">
-                            <button onClick={() => setDeleteQId(null)} className="px-5 py-2.5 text-sm text-gray-500 border border-gray-100 rounded-xl hover:bg-gray-50">Batal</button>
-                            <button onClick={handleDeleteQ} className="px-5 py-2.5 text-sm font-bold text-white bg-red-500 rounded-xl hover:bg-red-600">Hapus</button>
+                            <button onClick={() => setDeleteQId(null)} className="px-5 py-2.5 text-sm text-gray-500 border border-gray-100 rounded-xl hover:bg-gray-50">{t("questionBank.cancel")}</button>
+                            <button onClick={handleDeleteQ} className="px-5 py-2.5 text-sm font-bold text-white bg-red-500 rounded-xl hover:bg-red-600">{t("questionBank.deleteBtn")}</button>
                         </div>
                     </div>
                 </Modal>
@@ -653,33 +670,33 @@ export default function QuestionBankPage() {
 
             {/* Import to Exam */}
             {showImport && selectedBank && (
-                <Modal title={`Import "${selectedBank.title}" ke Ujian`} onClose={() => setShowImport(false)}>
+                <Modal title={`${t("questionBank.importModalTitle")} "${selectedBank.title}" ${t("questionBank.importModalTitleSub")}`} onClose={() => setShowImport(false)}>
                     <div className="space-y-4">
                         <div className="bg-[#006D77]/5 rounded-xl p-3 border border-[#006D77]/10">
                             <p className="text-xs text-[#006D77] font-semibold flex items-center gap-1.5">
-                                <BookOpen size={13} /> {selectedBank.questions?.length ?? 0} soal akan disalin ke ujian yang dipilih
+                                <BookOpen size={13} /> {selectedBank.questions?.length ?? 0}{t("questionBank.importModalInfo")}
                             </p>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Pilih Kelas</label>
+                            <label className="block text-xs font-semibold text-gray-500 mb-1.5">{t("questionBank.selectClass")}</label>
                             <select
                                 className="w-full px-3 py-2.5 text-sm border border-gray-100 rounded-xl bg-gray-50 focus:outline-none focus:border-[#006D77] focus:bg-white"
                                 value={selectedImportClass ?? ""}
                                 onChange={e => { const v = parseInt(e.target.value); setSelectedImportClass(v); if (v) fetchExamsForClass(v); }}
                             >
-                                <option value="">-- Pilih Kelas --</option>
+                                <option value="">{t("questionBank.classPlaceholder")}</option>
                                 {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
                         </div>
 
                         {selectedImportClass && (
                             <div>
-                                <label className="block text-xs font-semibold text-gray-500 mb-1.5">Pilih Ujian</label>
+                                <label className="block text-xs font-semibold text-gray-500 mb-1.5">{t("questionBank.selectExam")}</label>
                                 {loadingExams ? (
                                     <div className="flex justify-center py-4"><div className="w-4 h-4 border-2 border-[#006D77] border-t-transparent rounded-full animate-spin" /></div>
                                 ) : exams.length === 0 ? (
-                                    <p className="text-xs text-gray-400 text-center py-3">Tidak ada ujian di kelas ini</p>
+                                    <p className="text-xs text-gray-400 text-center py-3">{t("questionBank.noExams")}</p>
                                 ) : (
                                     <div className="space-y-2">
                                         {exams.map(exam => (
@@ -702,14 +719,14 @@ export default function QuestionBankPage() {
                         )}
 
                         <div className="flex justify-end gap-3 pt-2">
-                            <button onClick={() => setShowImport(false)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Tutup</button>
+                            <button onClick={() => setShowImport(false)} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">{t("questionBank.closeBtn")}</button>
                             <button
                                 onClick={handleImport}
                                 disabled={!selectedImportExam || importLoading}
                                 className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition-colors"
                             >
                                 <Upload size={15} />
-                                {importLoading ? "Mengimpor..." : "Import Sekarang"}
+                                {importLoading ? t("questionBank.importing") : t("questionBank.importNow")}
                             </button>
                         </div>
                     </div>

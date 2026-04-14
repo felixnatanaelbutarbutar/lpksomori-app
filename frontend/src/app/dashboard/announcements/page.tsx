@@ -7,6 +7,7 @@ import {
     Search, Shield, BookOpen, Clock, Languages,
     ChevronRight, Globe, Hash,
 } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL
     ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1`
@@ -14,8 +15,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL
 
 interface Creator { id: number; name: string; email: string; role: string; }
 interface Announcement {
-    id: number; title: string; title_ja: string;
-    content: string; content_ja: string;
+    id: number; title: string; title_en: string; title_ja: string;
+    content: string; content_en: string; content_ja: string;
     creator_id: number; creator: Creator; creator_role: string;
     is_pinned: boolean; is_active: boolean;
     created_at: string; updated_at: string;
@@ -34,12 +35,12 @@ const ROLE_CFG = {
     },
 };
 
-function timeAgo(iso: string) {
+function timeAgo(iso: string, t: any) {
     const d = (Date.now() - new Date(iso).getTime()) / 1000;
-    if (d < 60) return "Baru saja";
-    if (d < 3600) return `${Math.floor(d / 60)} mnt lalu`;
-    if (d < 86400) return `${Math.floor(d / 3600)} jam lalu`;
-    if (d < 604800) return `${Math.floor(d / 86400)} hari lalu`;
+    if (d < 60) return t("announcement.justNow");
+    if (d < 3600) return `${Math.floor(d / 60)} ${t("announcement.minsAgo")}`;
+    if (d < 86400) return `${Math.floor(d / 3600)} ${t("announcement.hoursAgo")}`;
+    if (d < 604800) return `${Math.floor(d / 86400)} ${t("announcement.daysAgo")}`;
     return new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 }
 
@@ -97,17 +98,21 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 }
 
 // ─── Regular Card ──────────────────────────────────────────────────────────────
-function AnnCard({ ann, role, userId, onDelete, onPin, onClick }: {
+function AnnCard({ ann, role, userId, onDelete, onPin, onClick, t, lang }: {
     ann: Announcement; role: string; userId: number;
     onDelete: (a: Announcement) => void;
     onPin: (a: Announcement) => void;
     onClick: (a: Announcement) => void;
+    t: any; lang: string;
 }) {
     const cfg = ROLE_CFG[ann.creator_role as keyof typeof ROLE_CFG] ?? ROLE_CFG.teacher;
     const RI = cfg.icon;
     const canManage = role === "admin" || userId === ann.creator_id;
     const hasJa = !!(ann.title_ja || ann.content_ja);
-    const textPreview = ann.content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    
+    const displayTitle = lang === "en" && ann.title_en ? ann.title_en : lang === "ja" && ann.title_ja ? ann.title_ja : ann.title;
+    const displayContent = lang === "en" && ann.content_en ? ann.content_en : lang === "ja" && ann.content_ja ? ann.content_ja : ann.content;
+    const textPreview = displayContent.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
     return (
         <article
@@ -150,7 +155,7 @@ function AnnCard({ ann, role, userId, onDelete, onPin, onClick }: {
                             className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
                             style={{ background: "var(--role-student-bg)", color: "var(--role-student)" }}
                         >
-                            <Languages size={8} /> Bilingual
+                            <Languages size={8} /> {t("announcement.bilingual")}
                         </span>
                     )}
                 </div>
@@ -163,10 +168,10 @@ function AnnCard({ ann, role, userId, onDelete, onPin, onClick }: {
                         fontFamily: "var(--font-serif)",
                     }}
                 >
-                    {ann.title}
+                    {displayTitle}
                 </h2>
 
-                {ann.title_ja && (
+                {lang !== "ja" && ann.title_ja && (
                     <p className="text-xs mb-2.5 pl-3" style={{
                         color: "var(--text-muted)",
                         borderLeft: "2px solid var(--border)",
@@ -197,7 +202,7 @@ function AnnCard({ ann, role, userId, onDelete, onPin, onClick }: {
                             {ann.creator?.name || "—"}
                         </span>
                         <span className="text-[10px] ml-1.5" style={{ color: "var(--text-muted)" }}>
-                            {timeAgo(ann.created_at)}
+                            {timeAgo(ann.created_at, t)}
                         </span>
                     </div>
                 </div>
@@ -249,11 +254,14 @@ function AnnCard({ ann, role, userId, onDelete, onPin, onClick }: {
 }
 
 // ─── Pinned Card (Banner Style) ────────────────────────────────────────────────
-function PinnedCard({ ann, role, userId, onDelete, onPin, onClick }: Parameters<typeof AnnCard>[0]) {
+function PinnedCard({ ann, role, userId, onDelete, onPin, onClick, t, lang }: Parameters<typeof AnnCard>[0]) {
     const cfg = ROLE_CFG[ann.creator_role as keyof typeof ROLE_CFG] ?? ROLE_CFG.teacher;
     const RI = cfg.icon;
     const canManage = role === "admin" || userId === ann.creator_id;
-    const textPreview = ann.content.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    
+    const displayTitle = lang === "en" && ann.title_en ? ann.title_en : lang === "ja" && ann.title_ja ? ann.title_ja : ann.title;
+    const displayContent = lang === "en" && ann.content_en ? ann.content_en : lang === "ja" && ann.content_ja ? ann.content_ja : ann.content;
+    const textPreview = displayContent.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
     return (
         <article
@@ -296,13 +304,13 @@ function PinnedCard({ ann, role, userId, onDelete, onPin, onClick }: Parameters<
                             className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold"
                             style={{ background: "var(--gold-soft)", color: "var(--gold)" }}
                         >
-                            <Pin size={9} /> Disematkan
+                            <Pin size={9} /> {t("announcement.pinned")}
                         </span>
                         <span
                             className="flex items-center gap-1.5 ml-auto text-[10px]"
                             style={{ color: "var(--text-muted)" }}
                         >
-                            <Clock size={10} /> {timeAgo(ann.created_at)}
+                            <Clock size={10} /> {timeAgo(ann.created_at, t)}
                         </span>
                     </div>
 
@@ -314,10 +322,10 @@ function PinnedCard({ ann, role, userId, onDelete, onPin, onClick }: Parameters<
                             letterSpacing: "-0.01em",
                         }}
                     >
-                        {ann.title}
+                        {displayTitle}
                     </h2>
 
-                    {ann.title_ja && (
+                    {lang !== "ja" && ann.title_ja && (
                         <p className="text-sm mb-3" style={{ color: "var(--text-muted)" }}>
                             {ann.title_ja}
                         </p>
@@ -344,7 +352,7 @@ function PinnedCard({ ann, role, userId, onDelete, onPin, onClick }: Parameters<
                             className="flex items-center gap-1.5 text-xs font-semibold transition-colors"
                             style={{ color: "var(--accent)" }}
                         >
-                            Baca selengkapnya <ChevronRight size={13} />
+                            {t("announcement.readMore")} 
                         </div>
                     </div>
                 </div>
@@ -387,6 +395,7 @@ function PinnedCard({ ann, role, userId, onDelete, onPin, onClick }: Parameters<
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function AnnouncementsPage() {
+    const { t, lang } = useLanguage();
     const router = useRouter();
     const [anns, setAnns] = useState<Announcement[]>([]);
     const [loading, setLoading] = useState(true);
@@ -444,9 +453,9 @@ export default function AnnouncementsPage() {
     const canCreate = role === "admin" || role === "teacher";
 
     const filterTabs = [
-        { key: "all" as const, label: "Semua", count: anns.length, icon: Hash },
-        { key: "admin" as const, label: "Admin", count: anns.filter(a => a.creator_role === "admin").length, icon: Shield },
-        { key: "teacher" as const, label: "Guru", count: anns.filter(a => a.creator_role === "teacher").length, icon: BookOpen },
+        { key: "all" as const, label: t("announcement.all"), count: anns.length, icon: Hash },
+        { key: "admin" as const, label: t("announcement.admin"), count: anns.filter(a => a.creator_role === "admin").length, icon: Shield },
+        { key: "teacher" as const, label: t("announcement.teacher"), count: anns.filter(a => a.creator_role === "teacher").length, icon: BookOpen },
     ];
 
     return (
@@ -470,10 +479,10 @@ export default function AnnouncementsPage() {
                             letterSpacing: "-0.02em",
                         }}
                     >
-                        Pengumuman
+                        {t("announcement.title")}
                     </h1>
                     <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
-                        Informasi dan pengumuman untuk seluruh civitas akademika
+                        {t("announcement.subtitle")}
                     </p>
                 </div>
                 {canCreate && (
@@ -494,7 +503,7 @@ export default function AnnouncementsPage() {
                         }}
                     >
                         <Plus size={15} />
-                        Buat Pengumuman
+                        {t("announcement.create")}
                     </button>
                 )}
             </div>
@@ -532,7 +541,7 @@ export default function AnnouncementsPage() {
                     <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
                     <input
                         type="text"
-                        placeholder="Cari pengumuman..."
+                        placeholder={t("announcement.search")}
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="pl-8 pr-4 py-2 rounded-xl text-sm w-52 transition-all"
@@ -581,10 +590,10 @@ export default function AnnouncementsPage() {
                     </div>
                     <div className="text-center">
                         <p className="font-semibold text-sm" style={{ color: "var(--text-secondary)" }}>
-                            Belum ada pengumuman
+                            {t("announcement.emptyTitle")}
                         </p>
                         <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                            お知らせはまだありません
+                            {t("announcement.emptySub")}
                         </p>
                     </div>
                     {canCreate && (
@@ -593,7 +602,7 @@ export default function AnnouncementsPage() {
                             className="mt-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
                             style={{ background: "var(--accent)" }}
                         >
-                            Buat Pengumuman Pertama
+                            {t("announcement.createFirst")}
                         </button>
                     )}
                 </div>
@@ -605,7 +614,7 @@ export default function AnnouncementsPage() {
                             <div className="flex items-center gap-2">
                                 <Pin size={11} style={{ color: "var(--gold)" }} />
                                 <span className="text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--gold)" }}>
-                                    Disematkan
+                                    {t("announcement.pinned")}
                                 </span>
                             </div>
                             <div className={`grid gap-4 ${pinned.length === 1 ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2"}`}>
@@ -618,6 +627,8 @@ export default function AnnouncementsPage() {
                                         onDelete={setDeleteTarget}
                                         onPin={handlePin}
                                         onClick={(x) => router.push(`/dashboard/announcements/${x.id}`)}
+                                        t={t}
+                                        lang={lang}
                                     />
                                 ))}
                             </div>
@@ -631,7 +642,7 @@ export default function AnnouncementsPage() {
                                 <div className="flex items-center gap-2">
                                     <Globe size={11} style={{ color: "var(--text-muted)" }} />
                                     <span className="text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>
-                                        Lainnya
+                                        {t("announcement.other")}
                                     </span>
                                 </div>
                             )}
@@ -645,6 +656,8 @@ export default function AnnouncementsPage() {
                                         onDelete={setDeleteTarget}
                                         onPin={handlePin}
                                         onClick={(x) => router.push(`/dashboard/announcements/${x.id}`)}
+                                        t={t}
+                                        lang={lang}
                                     />
                                 ))}
                             </div>
@@ -655,7 +668,7 @@ export default function AnnouncementsPage() {
 
             {/* Delete confirm modal */}
             {deleteTarget && (
-                <Modal title="Hapus Pengumuman?" onClose={() => setDeleteTarget(null)}>
+                <Modal title={t("announcement.deleteConfirm")} onClose={() => setDeleteTarget(null)}>
                     <div
                         className="rounded-xl p-4 mb-5"
                         style={{ background: "var(--danger-bg)", border: "1px solid #F5C5C0" }}
@@ -665,7 +678,7 @@ export default function AnnouncementsPage() {
                         </p>
                     </div>
                     <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
-                        Pengumuman ini akan dihapus secara permanen dan tidak dapat dikembalikan.
+                        {t("announcement.deleteDesc")}
                     </p>
                     <div className="flex gap-3">
                         <button
@@ -673,7 +686,7 @@ export default function AnnouncementsPage() {
                             className="flex-1 py-2.5 rounded-xl border text-sm font-medium transition-colors"
                             style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
                         >
-                            Batal
+                            {t("announcement.cancel")}
                         </button>
                         <button
                             onClick={handleDelete}
@@ -681,7 +694,7 @@ export default function AnnouncementsPage() {
                             style={{ background: "var(--danger)" }}
                         >
                             <Trash2 size={13} />
-                            Ya, Hapus
+                            {t("announcement.yesDelete")}
                         </button>
                     </div>
                 </Modal>

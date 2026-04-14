@@ -10,6 +10,7 @@ import {
     Star,
     BookOpen,
 } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 const API = "http://localhost:8080/api/v1";
 
@@ -24,6 +25,8 @@ interface AcademicYear {
 interface Class {
     id: number;
     name: string;
+    name_en?: string;
+    name_ja?: string;
     bab_start: number;
     bab_end: number;
     teacher_id: number | null;
@@ -58,6 +61,7 @@ function Modal({
 }
 
 export default function AcademicPage() {
+    const { t, lang } = useLanguage();
     const [years, setYears] = useState<AcademicYear[]>([]);
     const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
@@ -141,15 +145,15 @@ export default function AcademicPage() {
                         <div className="w-10 h-10 rounded-xl bg-[#006D77]/10 flex items-center justify-center text-[#006D77]">
                             <BookOpen size={20} />
                         </div>
-                        Tahun Ajaran
+                        {t("academic.title")}
                     </h1>
-                    <p className="text-sm text-gray-400">Kelola master tahun ajaran dan pastikan hanya ada satu tahun ajaran yang aktif sekaligus.</p>
+                    <p className="text-sm text-gray-400">{t("academic.subtitle")}</p>
                 </div>
                 <button
                     onClick={() => setShowCreate(true)}
                     className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#006D77] text-white font-bold text-sm shadow-lg shadow-[#006D77]/20 transition-all hover:scale-105 active:scale-95 w-full sm:w-auto shrink-0"
                 >
-                    <Plus size={18} /> Tambah Tahun Ajaran
+                    <Plus size={18} /> {t("academic.add")}
                 </button>
             </div>
 
@@ -166,11 +170,11 @@ export default function AcademicPage() {
                         <Star size={18} className="text-[#E9C46A]" fill="#E9C46A" />
                     </div>
                     <div>
-                        <p className="text-xs font-medium text-white/60">Tahun Ajaran Aktif</p>
+                        <p className="text-xs font-medium text-white/60">{t("academic.activeAy")}</p>
                         <p className="text-lg font-bold font-serif">{activeYear.year_range}</p>
                     </div>
                     <div className="ml-auto text-xs text-white/50">
-                        {activeYear.classes?.length ?? 0} kelas terdaftar
+                        {activeYear.classes?.length ?? 0} {t("academic.registeredClasses")}
                     </div>
                 </div>
             )}
@@ -180,19 +184,24 @@ export default function AcademicPage() {
                 {loading ? (
                     <div className="flex items-center justify-center py-16 text-gray-400 text-sm gap-2">
                         <div className="w-4 h-4 border-2 border-[#006D77] border-t-transparent rounded-full animate-spin" />
-                        Memuat data...
+                        {t("academic.loading")}
                     </div>
                 ) : years.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-2">
                         <CalendarDays size={36} className="text-gray-200" />
-                        <p className="text-gray-400 text-sm">Belum ada tahun ajaran</p>
+                        <p className="text-gray-400 text-sm">{t("academic.noData")}</p>
                     </div>
                 ) : (
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b border-gray-50">
-                                {["Tahun Ajaran", "Status", "Kelas", "Dibuat", "Aksi"].map(
-                                    (h) => (
+                                {[
+                                    t("academic.colYear"),
+                                    t("academic.colStatus"),
+                                    t("academic.colClass"),
+                                    t("academic.colCreated"),
+                                    t("academic.colAction")
+                                ].map((h) => (
                                         <th
                                             key={h}
                                             className="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider"
@@ -230,12 +239,12 @@ export default function AcademicPage() {
                                             {y.is_active ? (
                                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-600">
                                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                                    Aktif
+                                                    {t("academic.active")}
                                                 </span>
                                             ) : (
                                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-400">
                                                     <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
-                                                    Tidak Aktif
+                                                    {t("academic.inactive")}
                                                 </span>
                                             )}
                                         </td>
@@ -247,7 +256,7 @@ export default function AcademicPage() {
                                                 className="flex items-center gap-1.5 text-xs text-[#006D77] hover:underline"
                                             >
                                                 <BookOpen size={13} />
-                                                {y.classes?.length ?? 0} kelas
+                                                {y.classes?.length ?? 0}{t("academic.classesPrefix")}
                                             </button>
                                         </td>
                                         <td className="px-5 py-4 text-gray-400 text-xs">
@@ -264,10 +273,10 @@ export default function AcademicPage() {
                                                         onClick={() => handleActivate(y.id)}
                                                         disabled={activating === y.id}
                                                         className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-[#006D77] bg-[#006D77]/8 hover:bg-[#006D77]/15 transition-colors disabled:opacity-50"
-                                                        title="Aktifkan"
+                                                        title={t("academic.activate")}
                                                     >
                                                         <CheckCircle2 size={12} />
-                                                        {activating === y.id ? "..." : "Aktifkan"}
+                                                        {activating === y.id ? t("academic.activating") : t("academic.activate")}
                                                     </button>
                                                 )}
                                                 {!y.is_active && (
@@ -284,7 +293,7 @@ export default function AcademicPage() {
                                                 )}
                                                 {y.is_active && (
                                                     <span className="text-xs text-gray-300 italic">
-                                                        Sedang aktif
+                                                        {t("academic.currentlyActive")}
                                                     </span>
                                                 )}
                                             </div>
@@ -301,7 +310,7 @@ export default function AcademicPage() {
                                                             key={cls.id}
                                                             className="px-3 py-1 rounded-xl text-xs font-medium bg-white border border-gray-100 text-gray-600 shadow-xs"
                                                         >
-                                                            {cls.name}
+                                                            {lang === "en" && cls.name_en ? cls.name_en : lang === "ja" && cls.name_ja ? cls.name_ja : cls.name}
                                                         </span>
                                                     ))}
                                                 </div>
@@ -318,7 +327,7 @@ export default function AcademicPage() {
             {/* Create Modal */}
             {showCreate && (
                 <Modal
-                    title="Tambah Tahun Ajaran"
+                    title={t("academic.createTitle")}
                     onClose={() => {
                         setShowCreate(false);
                         setFormError("");
@@ -332,18 +341,18 @@ export default function AcademicPage() {
                     <form onSubmit={handleCreate} className="space-y-4">
                         <div>
                             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                Tahun Ajaran <span className="text-red-400">*</span>
+                                {t("academic.formYear")} <span className="text-red-400">*</span>
                             </label>
                             <input
                                 type="text"
                                 required
-                                placeholder="Contoh: 2025/2026"
+                                placeholder={t("academic.formYearPh")}
                                 value={form.year_range}
                                 onChange={(e) => setForm({ ...form, year_range: e.target.value })}
                                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] focus:ring-1 focus:ring-[#006D77]/20 transition-all"
                             />
                             <p className="text-xs text-gray-400 mt-1">
-                                Format: YYYY/YYYY (contoh: 2025/2026)
+                                {t("academic.formYearHelp")}
                             </p>
                         </div>
 
@@ -357,16 +366,16 @@ export default function AcademicPage() {
                             />
                             <div>
                                 <label htmlFor="set_active" className="text-sm font-medium text-gray-700 cursor-pointer">
-                                    Jadikan tahun ajaran aktif
+                                    {t("academic.formActiveLabel")}
                                 </label>
                                 <p className="text-xs text-gray-400 mt-0.5">
-                                    Jika dicentang, tahun ajaran lain akan otomatis dinonaktifkan
+                                    {t("academic.formActiveHelp")}
                                 </p>
                             </div>
                         </div>
 
                         <p className="text-xs text-gray-400 bg-blue-50 rounded-lg px-3 py-2 border border-blue-100">
-                            ✨ Sistem akan otomatis membuat <strong>Kelas 1–8</strong> untuk tahun ajaran ini
+                            ✨ {t("academic.formAutoCreateHelp")} <strong>{t("academic.formAutoCreateStrong")}</strong> {t("academic.formAutoCreateSuffix")}
                         </p>
 
                         <div className="flex gap-3 pt-1">
@@ -378,7 +387,7 @@ export default function AcademicPage() {
                                 }}
                                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
                             >
-                                Batal
+                                {t("academic.cancel")}
                             </button>
                             <button
                                 type="submit"
@@ -386,7 +395,7 @@ export default function AcademicPage() {
                                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
                                 style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}
                             >
-                                {formLoading ? "Menyimpan..." : "Buat Tahun Ajaran"}
+                                {formLoading ? t("academic.saving") : t("academic.save")}
                             </button>
                         </div>
                     </form>
@@ -395,24 +404,23 @@ export default function AcademicPage() {
 
             {/* Delete Confirm */}
             {deleteId && (
-                <Modal title="Hapus Tahun Ajaran?" onClose={() => setDeleteId(null)}>
+                <Modal title={t("academic.deleteTitle")} onClose={() => setDeleteId(null)}>
                     <p className="text-sm text-gray-600 mb-6">
-                        Semua kelas yang terhubung ke tahun ajaran ini juga akan ikut terhapus.
-                        Pastikan tidak ada data penting yang masih digunakan.
+                        {t("academic.deleteDesc")}
                     </p>
                     <div className="flex gap-3">
                         <button
                             onClick={() => setDeleteId(null)}
                             className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50"
                         >
-                            Batal
+                            {t("academic.cancel")}
                         </button>
                         <button
                             onClick={handleDelete}
                             className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-500 hover:bg-red-600 flex items-center justify-center gap-2"
                         >
                             <Trash2 size={14} />
-                            Hapus
+                            {t("academic.deleteBtn")}
                         </button>
                     </div>
                 </Modal>

@@ -5,6 +5,7 @@ import {
     BarChart3, GraduationCap, TrendingUp, BookOpen,
     CheckCircle2, XCircle, Clock, Star, FileText, ChevronRight
 } from "lucide-react";
+import { useLanguage, LangCode } from "@/i18n/LanguageContext";
 
 const API = "http://localhost:8080/api/v1";
 
@@ -41,11 +42,11 @@ function ScoreBadge({ score }: { score: number }) {
     );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, t }: { status: string, t: any }) {
     const cfg: Record<string, { icon: React.ReactNode; cls: string; label: string }> = {
-        "Passed":      { icon: <CheckCircle2 size={12} />, cls: "text-emerald-600 bg-emerald-50 border-emerald-100", label: "Lulus" },
-        "Failed":      { icon: <XCircle      size={12} />, cls: "text-red-600 bg-red-50 border-red-100",             label: "Tidak Lulus" },
-        "In Progress": { icon: <Clock        size={12} />, cls: "text-blue-600 bg-blue-50 border-blue-100",          label: "Dalam Proses" },
+        "Passed":      { icon: <CheckCircle2 size={12} />, cls: "text-emerald-600 bg-emerald-50 border-emerald-100", label: t("recap.pass") },
+        "Failed":      { icon: <XCircle      size={12} />, cls: "text-red-600 bg-red-50 border-red-100",             label: t("recap.fail") },
+        "In Progress": { icon: <Clock        size={12} />, cls: "text-blue-600 bg-blue-50 border-blue-100",          label: t("recap.inProgress") },
     };
     const c = cfg[status] ?? { icon: <Clock size={12} />, cls: "text-gray-500 bg-gray-50 border-gray-100", label: status };
     return (
@@ -65,6 +66,7 @@ function ScoreBar({ value, max = 100, color }: { value: number; max?: number; co
 }
 
 export default function StudentMyRecapPage() {
+    const { t, lang } = useLanguage();
     const token = typeof window !== "undefined" ? localStorage.getItem("mori_token") ?? "" : "";
     const [recaps, setRecaps] = useState<GradeRecap[]>([]);
     const [loading, setLoading] = useState(true);
@@ -129,10 +131,10 @@ export default function StudentMyRecapPage() {
                         onClick={() => setSelectedRecap(null)}
                         className="flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-[#006D77] transition-colors bg-white px-4 py-2 rounded-xl border border-gray-100 shadow-sm"
                     >
-                        ← Kembali ke Daftar Kelas
+                        {t("recap.backToList")}
                     </button>
                     <div className="text-right">
-                        <StatusBadge status={selectedRecap.status} />
+                        <StatusBadge status={selectedRecap.status} t={t} />
                     </div>
                 </div>
 
@@ -141,8 +143,13 @@ export default function StudentMyRecapPage() {
                         <div className="absolute right-0 top-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
                         <div className="relative z-10">
                             <p className="text-white/50 text-[10px] uppercase font-bold tracking-widest mb-1">Laporan Nilai Akhir</p>
-                            <h2 className="text-3xl font-serif font-black mb-1">{className}</h2>
-                            <p className="text-white/60 text-sm">{yearRange || "Tahun Ajaran Aktif"}</p>
+                            <h2 className="text-3xl font-serif font-black mb-1">{
+                                // Show dynamic db title translation based on language
+                                (lang === "en" && (selectedRecap as any).class?.name_en) ? (selectedRecap as any).class?.name_en : 
+                                (lang === "ja" && (selectedRecap as any).class?.name_ja) ? (selectedRecap as any).class?.name_ja : 
+                                className
+                            }</h2>
+                            <p className="text-white/60 text-sm">{yearRange || t("recap.activeYear")}</p>
                         </div>
                     </div>
 
@@ -153,11 +160,11 @@ export default function StudentMyRecapPage() {
                                     <span className="text-4xl font-black text-[#0D1B2A]">{(detailedRecap?.final_score ?? selectedRecap.final_score).toFixed(1)}</span>
                                 </div>
                                 <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white px-3 py-1 rounded-full shadow-md border border-gray-100">
-                                    <span className="text-[10px] font-black uppercase text-[#006D77]">Nilai Akhir</span>
+                                    <span className="text-[10px] whitespace-nowrap font-black uppercase text-[#006D77]">{t("recap.finalScore")}</span>
                                 </div>
                             </div>
                             <p className="max-w-xs text-sm text-gray-400 leading-relaxed italic">
-                                "{selectedRecap.notes || "Terus semangat belajar untuk mencapai impianmu di Negeri Sakura!"}"
+                                "{selectedRecap.notes || (lang==="id"?"Satu babak selesai, bersiap untuk tantangan baru!":lang==="en"?"A chapter closed, prepare for the next challenge!":"一つの区切りがつき、新たな挑戦への準備を！")}"
                             </p>
                         </div>
 
@@ -166,7 +173,7 @@ export default function StudentMyRecapPage() {
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2 text-[#3B82F6]">
                                         <FileText size={18} />
-                                        <span className="text-xs font-bold uppercase tracking-wider">Rata-rata Tugas</span>
+                                        <span className="text-[10px] md:text-xs font-bold uppercase tracking-wider">{t("recap.avgAssignment")}</span>
                                     </div>
                                     <span className="text-xl font-black text-[#0D1B2A]">{(detailedRecap?.assignment_avg ?? selectedRecap.assignment_avg).toFixed(1)}</span>
                                 </div>
@@ -177,7 +184,7 @@ export default function StudentMyRecapPage() {
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2 text-[#006D77]">
                                         <Star size={18} />
-                                        <span className="text-xs font-bold uppercase tracking-wider">Nilai Ujian</span>
+                                        <span className="text-[10px] md:text-xs font-bold uppercase tracking-wider">{t("recap.examScore")}</span>
                                     </div>
                                     <span className="text-xl font-black text-[#0D1B2A]">{(detailedRecap?.exam_avg ?? selectedRecap.exam_score).toFixed(1)}</span>
                                 </div>
@@ -189,46 +196,46 @@ export default function StudentMyRecapPage() {
                             <div className="flex justify-center py-6"><div className="w-5 h-5 border-2 border-[#006D77] border-t-transparent rounded-full animate-spin" /></div>
                         ) : detailedRecap ? (
                             <div className="pt-6 border-t border-gray-100 grid md:grid-cols-2 gap-8">
-                                {/* Assignment Breakdown */}
                                 <div>
                                     <h3 className="text-sm font-bold text-[#0D1B2A] mb-4 flex items-center gap-2">
-                                        <FileText size={16} className="text-[#3B82F6]"/> Rincian Nilai Tugas
+                                        <FileText size={16} className="text-[#3B82F6]"/> {t("recap.assignmentBreakdown")}
                                     </h3>
                                     {Object.keys(detailedRecap.assignment_grades || {}).length === 0 ? (
-                                        <p className="text-xs text-gray-400 italic">Belum ada tugas untuk kelas ini.</p>
+                                        <p className="text-xs text-gray-400 italic">{t("recap.noAssignment")}</p>
                                     ) : (
                                         <div className="space-y-3">
-                                            {Object.entries(detailedRecap.assignment_grades).map(([title, grade]) => (
+                                            {Object.entries(detailedRecap.assignment_grades).map(([title, score]) => (
                                                 <div key={title} className="flex items-center justify-between bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
                                                     <span className="text-sm font-semibold text-gray-700 truncate mr-3">{title}</span>
-                                                    {grade === -1 ? (
-                                                        <span className="text-[10px] font-bold px-2 py-1 bg-gray-100 text-gray-500 rounded-md">Belum Dinilai</span>
-                                                    ) : (
-                                                        <span className={`text-sm font-black ${grade === 0 ? 'text-red-500' : 'text-[#0D1B2A]'}`}>{grade.toFixed(1)}</span>
-                                                    )}
+                                                    <div className="text-right">
+                                                        <ScoreBadge score={score} />
+                                                        <p className="text-[10px] mt-1 text-gray-400">
+                                                            {score === 0 ? t("recap.pastDue") : score < 0 ? t("recap.notGraded") : t("recap.submitted")}
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
                                     )}
                                 </div>
 
-                                {/* Exam Breakdown */}
                                 <div>
                                     <h3 className="text-sm font-bold text-[#0D1B2A] mb-4 flex items-center gap-2">
-                                        <Star size={16} className="text-[#006D77]"/> Rincian Nilai Ujian
+                                        <Star size={16} className="text-[#006D77]"/> {t("recap.examBreakdown")}
                                     </h3>
                                     {Object.keys(detailedRecap.exam_grades || {}).length === 0 ? (
-                                        <p className="text-xs text-gray-400 italic">Belum ada ujian untuk kelas ini.</p>
+                                        <p className="text-xs text-gray-400 italic">{t("recap.noExam")}</p>
                                     ) : (
                                         <div className="space-y-3">
-                                            {Object.entries(detailedRecap.exam_grades).map(([title, grade]) => (
+                                            {Object.entries(detailedRecap.exam_grades).map(([title, score]) => (
                                                 <div key={title} className="flex items-center justify-between bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
                                                     <span className="text-sm font-semibold text-gray-700 truncate mr-3">{title}</span>
-                                                    {grade === -1 ? (
-                                                        <span className="text-[10px] font-bold px-2 py-1 bg-gray-100 text-gray-500 rounded-md">Belum Dinilai</span>
-                                                    ) : (
-                                                        <span className={`text-sm font-black ${grade === 0 ? 'text-red-500' : 'text-[#0D1B2A]'}`}>{grade.toFixed(1)}</span>
-                                                    )}
+                                                    <div className="text-right">
+                                                        <ScoreBadge score={score} />
+                                                        <p className="text-[10px] mt-1 text-gray-400">
+                                                            {score === 0 ? t("recap.pastDue") : score < 0 ? t("recap.notGraded") : t("recap.submitted")}
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -245,10 +252,12 @@ export default function StudentMyRecapPage() {
     return (
         <div className="max-w-6xl mx-auto space-y-8 pb-20 animate-in fade-in duration-500">
             <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10">
                     <div>
-                        <h1 className="text-3xl font-serif font-black text-[#0D1B2A] mb-1">Rekap Nilai Saya</h1>
-                        <p className="text-sm text-gray-400">Pilih kelas untuk melihat detail rekap nilai tugas dan ujian.</p>
+                        <h1 className="text-3xl font-serif font-black tracking-tight text-[#0D1B2A] mb-2">{t("recap.title")}</h1>
+                        <p className="text-gray-500 text-sm max-w-lg leading-relaxed">
+                            {t("recap.subtitle")}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -256,10 +265,10 @@ export default function StudentMyRecapPage() {
             {totalClasses > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     {[
-                        { label: "Total Kelas",   value: totalClasses, icon: <BookOpen size={18} />,      color: "#006D77", bg: "#006D7715" },
-                        { label: "Rata-rata Akhir", value: avgFinal.toFixed(1), icon: <Star size={18} />,  color: "#0EA5E9", bg: "#0EA5E915" },
-                        { label: "Lulus",          value: passedCount,      icon: <CheckCircle2 size={18} />,   color: "#059669", bg: "#05966915" },
-                        { label: "Sedang Berjalan",value: inProgressCount,  icon: <TrendingUp size={18} />,     color: "#6366F1", bg: "#6366F115" },
+                        { label: t("recap.totalClasses"),   value: totalClasses, icon: <BookOpen size={18} />,      color: "#006D77", bg: "#006D7715" },
+                        { label: t("recap.avgFinal"), value: avgFinal.toFixed(1), icon: <Star size={18} />,  color: "#0EA5E9", bg: "#0EA5E915" },
+                        { label: t("recap.passed"),          value: passedCount,      icon: <CheckCircle2 size={18} />,   color: "#059669", bg: "#05966915" },
+                        { label: t("recap.inProgress"),value: inProgressCount,  icon: <TrendingUp size={18} />,     color: "#6366F1", bg: "#6366F115" },
                     ].map((stat, i) => (
                         <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
                             <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: stat.bg, color: stat.color }}>
@@ -275,12 +284,9 @@ export default function StudentMyRecapPage() {
             )}
 
             {recaps.length === 0 ? (
-                <div className="bg-white rounded-3xl border border-dashed border-gray-200 py-20 flex flex-col items-center justify-center text-center px-4">
-                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 text-gray-300">
-                        <GraduationCap size={32} />
-                    </div>
-                    <h3 className="text-lg font-bold text-[#0D1B2A]">Belum Ada Nilai Diterbitkan</h3>
-                    <p className="text-sm text-gray-400 max-w-sm mt-1">Rekap nilai akan muncul di sini setelah Sensei menyelesaikan dan menerbitkan nilai untuk kelasmu.</p>
+                <div className="text-center py-20 bg-white rounded-[32px] border border-gray-100 shadow-sm col-span-full">
+                    <GraduationCap size={48} className="mx-auto text-gray-200 mb-4" />
+                    <p className="text-gray-400 font-medium">{t("recap.noData")}</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -297,28 +303,36 @@ export default function StudentMyRecapPage() {
                                         <div className="w-12 h-12 rounded-2xl bg-[#006D77]/10 flex items-center justify-center text-[#006D77]">
                                             <GraduationCap size={24} />
                                         </div>
-                                        <StatusBadge status={recap.status} />
+                                        <StatusBadge status={recap.status} t={t} />
                                     </div>
-                                    <h3 className="font-black text-[#0D1B2A] text-lg leading-tight mb-1">{className}</h3>
-                                    <p className="text-xs text-gray-400 mb-6">{yearRange || "Tahun Ajaran Aktif"}</p>
+                                    <h3 className="text-xl font-serif font-black text-[#0D1B2A] mb-2">{
+                                        (lang === "en" && (recap as any).class?.name_en) ? (recap as any).class?.name_en : 
+                                        (lang === "ja" && (recap as any).class?.name_ja) ? (recap as any).class?.name_ja : 
+                                        className
+                                    }</h3>
+                                    <p className="text-xs text-gray-400 mb-6">{yearRange || t("recap.activeYear")}</p>
                                     
                                     <div className="grid grid-cols-2 gap-3 mb-6">
                                         <div className="bg-gray-50 rounded-xl p-3">
-                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Tugas</p>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">{t("recap.assignment")}</p>
                                             <p className="text-sm font-black text-[#0D1B2A]">{recap.assignment_avg.toFixed(1)}</p>
                                         </div>
                                         <div className="bg-gray-50 rounded-xl p-3">
-                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Ujian</p>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">{t("recap.exam")}</p>
                                             <p className="text-sm font-black text-[#0D1B2A]">{recap.exam_score.toFixed(1)}</p>
                                         </div>
                                     </div>
                                 </div>
+                                <div className="px-6 py-4 bg-gray-50 flex items-center justify-between mt-auto">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{t("recap.finalScore")}</span>
+                                    <span className="text-lg font-black text-[#0D1B2A]">{recap.final_score.toFixed(1)}</span>
+                                </div>
                                 <div className="p-4 bg-gray-50/50 border-t border-gray-100">
                                     <button
                                         onClick={() => handleSelectRecap(recap)}
-                                        className="w-full py-3 bg-[#006D77] text-white rounded-xl text-xs font-bold shadow-[0_4px_12px_rgba(0,109,119,0.2)] hover:bg-[#0D7A6F] transition-all flex items-center justify-center gap-2"
+                                        className="w-full py-3 text-[#006D77] font-bold text-sm bg-white rounded-xl border border-[#006D77]/10 hover:bg-[#006D77] hover:text-white transition-colors"
                                     >
-                                        Lihat Detail Rekap <ChevronRight size={14} />
+                                        {t("recap.viewDetails")}
                                     </button>
                                 </div>
                             </div>

@@ -6,12 +6,15 @@ import {
     FileText, Plus, Trash2, X, ChevronRight, BookOpen, Clock, AlertCircle,
     CheckSquare, AlignLeft, Paperclip, ChevronLeft, GraduationCap, Link2, Upload
 } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 const API = "http://localhost:8080/api/v1";
 
 interface ClassModel {
     id: number;
     name: string;
+    name_en?: string;
+    name_ja?: string;
     academic_year_id: number;
     bab_start: number;
     bab_end: number;
@@ -82,6 +85,7 @@ function getUserID() {
 const OPTION_LETTERS = ["A", "B", "C", "D", "E"];
 
 export default function TeacherExamsPage() {
+    const { t, lang } = useLanguage();
     const token = typeof window !== "undefined" ? localStorage.getItem("mori_token") ?? "" : "";
     const myID = getUserID();
 
@@ -181,9 +185,9 @@ export default function TeacherExamsPage() {
                             <div className="w-10 h-10 rounded-xl bg-[#006D77]/10 flex items-center justify-center text-[#006D77]">
                                 <BookOpen size={20} />
                             </div>
-                            Manajemen Ujian
+                            {t("teacherExams.title")}
                         </h1>
-                        <p className="text-sm text-gray-400">Pilih kelas yang Anda ajar di bawah ini untuk mengelola ujian/kuis.</p>
+                        <p className="text-sm text-gray-400">{t("teacherExams.subtitle")}</p>
                     </div>
                 </div>
                 
@@ -191,8 +195,8 @@ export default function TeacherExamsPage() {
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b border-gray-50 bg-gray-50/50">
-                                <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Nama Kelas</th>
-                                <th className="text-right px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Aksi</th>
+                                <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">{t("teacherExams.colClass")}</th>
+                                <th className="text-right px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">{t("teacherExams.colAction")}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
@@ -202,7 +206,7 @@ export default function TeacherExamsPage() {
                                 </tr>
                             ) : classes.length === 0 ? (
                                 <tr>
-                                    <td colSpan={2} className="px-6 py-10 text-center text-gray-400">Belum ada kelas terdaftar di tahun ajaran ini.</td>
+                                    <td colSpan={2} className="px-6 py-10 text-center text-gray-400">{t("teacherExams.noClasses")}</td>
                                 </tr>
                             ) : classes.map(c => (
                                 <tr key={c.id} className="hover:bg-[#006D77]/5 transition-colors group">
@@ -211,7 +215,9 @@ export default function TeacherExamsPage() {
                                             <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:text-[#006D77] group-hover:bg-white border border-gray-100 transition-colors">
                                                 <FileText size={16} />
                                             </div>
-                                            <span className="font-bold text-[#0D1B2A]">{c.name}</span>
+                                            <span className="font-bold text-[#0D1B2A]">
+                                                {lang === "en" && c.name_en ? c.name_en : lang === "ja" && c.name_ja ? c.name_ja : c.name}
+                                            </span>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-right">
@@ -219,7 +225,7 @@ export default function TeacherExamsPage() {
                                             onClick={() => openClass(c)} 
                                             className="inline-flex items-center gap-2 px-4 py-2 bg-[#006D77]/10 text-[#006D77] font-bold text-xs rounded-xl hover:bg-[#006D77] hover:text-white transition-colors"
                                         >
-                                            Kelola Ujian
+                                            {t("teacherExams.manageExam")}
                                         </button>
                                     </td>
                                 </tr>
@@ -234,18 +240,18 @@ export default function TeacherExamsPage() {
     return (
         <div className="max-w-6xl mx-auto space-y-6 pb-20">
             <button onClick={closeClass} className="flex items-center gap-2 text-sm text-gray-400 hover:text-[#006D77] transition-colors mb-2">
-                <ChevronLeft size={16} /> Kembali ke daftar kelas
+                <ChevronLeft size={16} /> {t("teacherExams.backToClasses")}
             </button>
 
             <div className="bg-white rounded-[32px] border border-gray-100 shadow-[0_8px_30px_-10px_rgba(0,0,0,0.05)] p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <div>
                     <h1 className="text-3xl font-serif font-black text-[#0D1B2A] mb-1">
-                        Ujian Kelas: <span className="text-[#006D77]">{selectedClass.name}</span>
+                        {t("teacherExams.examOfClass")} <span className="text-[#006D77]">{lang === "en" && selectedClass.name_en ? selectedClass.name_en : lang === "ja" && selectedClass.name_ja ? selectedClass.name_ja : selectedClass.name}</span>
                     </h1>
-                    <p className="text-sm text-gray-400">Buat ujian baru, setting waktu batas, dan edit pertanyaan.</p>
+                    <p className="text-sm text-gray-400">{t("teacherExams.examOfClassSub")}</p>
                 </div>
                 <button onClick={() => setShowCreateExam(true)} className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold text-white shadow-lg shadow-[#006D77]/20 hover:scale-105 active:scale-95 transition-all bg-[#006D77] w-full sm:w-auto shrink-0">
-                    <Plus size={18} /> Buat Ujian Baru
+                    <Plus size={18} /> {t("teacherExams.createExamBtn")}
                 </button>
             </div>
 
@@ -254,10 +260,10 @@ export default function TeacherExamsPage() {
             ) : exams.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-20 flex flex-col items-center">
                     <FileText size={48} className="text-gray-200 mb-4" />
-                    <p className="font-semibold text-[#0D1B2A] text-lg">Belum Ada Ujian</p>
-                    <p className="text-sm text-gray-500 mt-1 mb-6">Kelas ini belum memiliki ujian atau kuis.</p>
+                    <p className="font-semibold text-[#0D1B2A] text-lg">{t("teacherExams.noExamTitle")}</p>
+                    <p className="text-sm text-gray-500 mt-1 mb-6">{t("teacherExams.noExamSub")}</p>
                     <button onClick={() => setShowCreateExam(true)} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors">
-                        + Buat Ujian Pertama
+                        {t("teacherExams.createFirstExam")}
                     </button>
                 </div>
             ) : (
@@ -274,15 +280,15 @@ export default function TeacherExamsPage() {
                             </div>
 
                             <h3 className="font-bold text-[#0D1B2A] text-xl mb-1 truncate">{exam.title}</h3>
-                            <p className="text-sm text-gray-500 line-clamp-2 min-h-[40px] mb-4">{exam.description || "Tanpa deskripsi"}</p>
+                            <p className="text-sm text-gray-500 line-clamp-2 min-h-[40px] mb-4">{exam.description || t("teacherExams.noDesc")}</p>
 
                             <div className="bg-gray-50 rounded-xl p-3 flex flex-col gap-2 text-xs font-medium text-gray-600 border border-gray-100 mb-4">
-                                <div className="flex items-center gap-2"><Clock size={12} className="text-gray-400" /> Mulai: {exam.start_time ? formatDate(exam.start_time) : "Bebas"}</div>
-                                <div className="flex items-center gap-2"><Clock size={12} className="text-gray-400" /> Selesai: {exam.end_time ? formatDate(exam.end_time) : "Bebas"}</div>
+                                <div className="flex items-center gap-2"><Clock size={12} className="text-gray-400" /> {t("teacherExams.start")}: {exam.start_time ? formatDate(exam.start_time) : t("teacherExams.free")}</div>
+                                <div className="flex items-center gap-2"><Clock size={12} className="text-gray-400" /> {t("teacherExams.end")}: {exam.end_time ? formatDate(exam.end_time) : t("teacherExams.free")}</div>
                             </div>
 
                             <button onClick={() => openExamDetail(exam)} className="mt-auto w-full py-3 rounded-xl text-sm font-semibold text-purple-700 bg-purple-50 hover:bg-purple-600 hover:text-white transition-colors border border-purple-100 flex justify-center items-center gap-2">
-                                Susun / Kelola Soal <ChevronRight size={16} />
+                                {t("teacherExams.manageQuestions")} <ChevronRight size={16} />
                             </button>
                         </div>
                     ))}
@@ -291,34 +297,34 @@ export default function TeacherExamsPage() {
 
             {/* CREATE EXAM MODAL */}
             {showCreateExam && (
-                <Modal title={`Buat Ujian Baru di ${selectedClass.name}`} onClose={() => setShowCreateExam(false)} wide>
+                <Modal title={`${t("teacherExams.createTitle")} ${lang === "en" && selectedClass.name_en ? selectedClass.name_en : lang === "ja" && selectedClass.name_ja ? selectedClass.name_ja : selectedClass.name}`} onClose={() => setShowCreateExam(false)} wide>
                     {examFormError && (<div className="bg-red-50 text-red-600 px-4 py-3 rounded-xl text-sm mb-4"><AlertCircle size={16} className="inline mr-2" />{examFormError}</div>)}
                     <form onSubmit={handleCreateExam} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">Judul Ujian *</label>
-                            <input type="text" required value={examForm.title} onChange={e => setExamForm({ ...examForm, title: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500" placeholder="Contoh: Ujian Tengah Semester..." />
+                            <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">{t("teacherExams.formTitle")}</label>
+                            <input type="text" required value={examForm.title} onChange={e => setExamForm({ ...examForm, title: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500" placeholder={t("teacherExams.formTitlePh")} />
                         </div>
                         <div>
-                            <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">Deskripsi / Peraturan</label>
-                            <textarea rows={3} value={examForm.description} onChange={e => setExamForm({ ...examForm, description: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500 resize-none" placeholder="Tulis instruksi pengerjaan jika ada..." />
+                            <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">{t("teacherExams.formDesc")}</label>
+                            <textarea rows={3} value={examForm.description} onChange={e => setExamForm({ ...examForm, description: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500 resize-none" placeholder={t("teacherExams.formDescPh")} />
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">Maksimal Akses (Attempt) *</label>
+                                <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">{t("teacherExams.formLimit")}</label>
                                 <input type="number" min={1} required value={examForm.max_attempts} onChange={e => setExamForm({ ...examForm, max_attempts: parseInt(e.target.value) || 1 })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500" />
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">Waktu Mulai (Opsional)</label>
+                                <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">{t("teacherExams.formStart")}</label>
                                 <input type="datetime-local" value={examForm.start_time} onChange={e => setExamForm({ ...examForm, start_time: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500 bg-white" />
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">Waktu Selesai (Opsional)</label>
+                                <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">{t("teacherExams.formEnd")}</label>
                                 <input type="datetime-local" value={examForm.end_time} onChange={e => setExamForm({ ...examForm, end_time: e.target.value })} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500 bg-white" />
                             </div>
                         </div>
                         <div className="flex gap-3 pt-4 border-t border-gray-100">
-                            <button type="button" onClick={() => setShowCreateExam(false)} className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50">Batal</button>
-                            <button type="submit" disabled={examFormLoading} className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50">Buat Ujian & Lanjut Bikin Soal</button>
+                            <button type="button" onClick={() => setShowCreateExam(false)} className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50">{t("teacherExams.cancel")}</button>
+                            <button type="submit" disabled={examFormLoading} className="flex-1 py-3 rounded-xl text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50">{t("teacherExams.submitCreate")}</button>
                         </div>
                     </form>
                 </Modal>
@@ -326,11 +332,11 @@ export default function TeacherExamsPage() {
 
             {/* DELETE MODAL */}
             {deleteExamId && (
-                <Modal title="Hapus Ujian?" onClose={() => setDeleteExamId(null)}>
-                    <p className="text-sm text-gray-600 mb-6">Ujian beserta semua soal di dalamnya akan dihapus. Perubahan ini permanen.</p>
+                <Modal title={t("teacherExams.deleteTitle")} onClose={() => setDeleteExamId(null)}>
+                    <p className="text-sm text-gray-600 mb-6">{t("teacherExams.deleteDesc")}</p>
                     <div className="flex gap-3">
-                        <button onClick={() => setDeleteExamId(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600">Batal</button>
-                        <button onClick={handleDeleteExam} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600">Hapus Ujian</button>
+                        <button onClick={() => setDeleteExamId(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600">{t("teacherExams.cancel")}</button>
+                        <button onClick={handleDeleteExam} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600">{t("teacherExams.deleteBtn")}</button>
                     </div>
                 </Modal>
             )}

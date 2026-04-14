@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 const API = "http://localhost:8080/api/v1";
 
@@ -30,6 +31,8 @@ interface AcademicYear {
 interface Class {
     id: number;
     name: string;
+    name_en?: string;
+    name_ja?: string;
     bab_start: number;
     bab_end: number;
     teacher_id: number | null;
@@ -92,6 +95,7 @@ function Modal({
 }
 
 export default function ClassesPage() {
+    const { t, lang } = useLanguage();
     const [classes, setClasses] = useState<Class[]>([]);
     const [activeYear, setActiveYear] = useState<AcademicYear | null>(null);
     const [loading, setLoading] = useState(true);
@@ -254,16 +258,16 @@ export default function ClassesPage() {
                         <div className="w-10 h-10 rounded-xl bg-[#006D77]/10 flex items-center justify-center text-[#006D77]">
                             <BookOpen size={20} />
                         </div>
-                        Manajemen Kelas
+                        {t("classes.title")}
                     </h1>
-                    <p className="text-sm text-gray-400">Tambah, edit nama, konfigurasi guru pengajar, dan kelola pendaftaran siswa per kelas.</p>
+                    <p className="text-sm text-gray-400">{t("classes.subtitle")}</p>
                 </div>
                 {activeYear && (
                     <button
                         onClick={() => setShowCreate(true)}
                         className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#006D77] text-white font-bold text-sm shadow-lg shadow-[#006D77]/20 transition-all hover:scale-105 active:scale-95 w-full sm:w-auto shrink-0"
                     >
-                        <Plus size={18} /> Tambah Kelas
+                        <Plus size={18} /> {t("classes.add")}
                     </button>
                 )}
             </div>
@@ -274,30 +278,29 @@ export default function ClassesPage() {
                     <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#006D77]/6 border border-[#006D77]/15">
                         <GraduationCap size={16} className="text-[#006D77]" />
                         <p className="text-sm text-[#006D77] font-medium">
-                            Tahun Ajaran Aktif:{" "}
-                            <span className="font-bold">{activeYear.year_range}</span>
+                            {t("classes.activeAy")} <span className="font-bold">{activeYear.year_range}</span>
                         </p>
                     </div>
                 ) : (
                     <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200">
                         <AlertCircle size={16} className="text-amber-500" />
                         <p className="text-sm text-amber-700">
-                            Belum ada tahun ajaran aktif. Aktifkan tahun ajaran terlebih dahulu.
+                            {t("classes.noActiveAy")}
                         </p>
                     </div>
                 )}
 
                 {/* Filter */}
                 <div className="flex items-center gap-2">
-                    <label className="text-sm font-semibold text-gray-500">Filter Tahun:</label>
+                    <label className="text-sm font-semibold text-gray-500">{t("classes.filterYear")}</label>
                     <select
                         value={selectedYearId}
                         onChange={(e) => setSelectedYearId(e.target.value === "all" ? "all" : parseInt(e.target.value))}
                         className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] bg-white min-w-[200px]"
                     >
-                        <option value="all">Semua Tahun Ajaran</option>
+                        <option value="all">{t("classes.allYears")}</option>
                         {allYears.map(y => (
-                            <option key={y.id} value={y.id}>{y.year_range} {y.is_active ? "(Aktif)" : ""}</option>
+                            <option key={y.id} value={y.id}>{y.year_range} {y.is_active ? `(${t("classes.active")})` : ""}</option>
                         ))}
                     </select>
                 </div>
@@ -308,24 +311,24 @@ export default function ClassesPage() {
                 {loading ? (
                     <div className="flex items-center justify-center py-16 text-gray-400 text-sm gap-2">
                         <div className="w-4 h-4 border-2 border-[#006D77] border-t-transparent rounded-full animate-spin" />
-                        Memuat data...
+                        {t("classes.loading")}
                     </div>
                 ) : classes.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-2">
                         <BookOpen size={36} className="text-gray-200" />
-                        <p className="text-gray-400 text-sm">Belum ada kelas</p>
+                        <p className="text-gray-400 text-sm">{t("classes.noData")}</p>
                     </div>
                 ) : (
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b border-gray-50">
                                 {[
-                                    "Nama Kelas",
-                                    "Cakupan Bab",
-                                    "Guru",
-                                    "Tahun Ajaran",
-                                    "Siswa",
-                                    "Aksi",
+                                    t("classes.colName"),
+                                    t("classes.colScope"),
+                                    t("classes.colTeacher"),
+                                    t("classes.colYear"),
+                                    t("classes.colStudents"),
+                                    t("classes.colAction"),
                                 ].map((h) => (
                                     <th
                                         key={h}
@@ -355,18 +358,18 @@ export default function ClassesPage() {
                                                         {cls.bab_start}-{cls.bab_end}
                                                     </div>
                                                     <span className="font-semibold text-[#0D1B2A]">
-                                                        {cls.name}
+                                                        {lang === "en" && cls.name_en ? cls.name_en : lang === "ja" && cls.name_ja ? cls.name_ja : cls.name}
                                                     </span>
                                                 </div>
                                             </td>
                                             <td className="px-5 py-4">
                                                 <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                                                    Bab {cls.bab_start} - {cls.bab_end}
+                                                    {t("classes.bab")} {cls.bab_start} - {cls.bab_end}
                                                 </span>
                                             </td>
                                             <td className="px-5 py-4">
                                                 <span className="text-xs text-gray-700">
-                                                    {cls.teacher?.name || <span className="text-gray-400 italic">Belum ditentukan</span>}
+                                                    {cls.teacher?.name || <span className="text-gray-400 italic">{t("classes.notAssigned")}</span>}
                                                 </span>
                                             </td>
                                             <td className="px-5 py-4">
@@ -387,7 +390,7 @@ export default function ClassesPage() {
                                                     className="flex items-center gap-1.5 text-xs font-medium text-[#006D77] hover:underline"
                                                 >
                                                     <Users size={13} />
-                                                    Lihat siswa
+                                                    {t("classes.viewStudents")}
                                                     <ChevronRight size={11} />
                                                 </button>
                                             </td>
@@ -406,7 +409,7 @@ export default function ClassesPage() {
                                                                 });
                                                             }}
                                                             className="w-7 h-7 rounded-lg hover:bg-blue-50 flex items-center justify-center group"
-                                                            title="Edit nama kelas"
+                                                            title={t("classes.editClass")}
                                                         >
                                                             <Pencil
                                                                 size={13}
@@ -418,7 +421,7 @@ export default function ClassesPage() {
                                                     <button
                                                         onClick={() => openEnrollPanel(cls)}
                                                         className="w-7 h-7 rounded-lg hover:bg-[#006D77]/10 flex items-center justify-center group"
-                                                        title="Kelola siswa"
+                                                        title={t("classes.assignStudents")}
                                                     >
                                                         <UserPlus
                                                             size={13}
@@ -430,7 +433,7 @@ export default function ClassesPage() {
                                                         <button
                                                             onClick={() => setDeleteId(cls.id)}
                                                             className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center group"
-                                                            title="Hapus kelas"
+                                                            title={t("classes.deleteClass")}
                                                         >
                                                             <Trash2
                                                                 size={13}
@@ -439,7 +442,7 @@ export default function ClassesPage() {
                                                         </button>
                                                     )}
                                                     {!isActive && (
-                                                        <div className="ml-2 flex flex-col items-center justify-center text-gray-400" title="Terkunci (TA Tidak Aktif)">
+                                                        <div className="ml-2 flex flex-col items-center justify-center text-gray-400" title={t("classes.locked")}>
                                                             <Lock size={13} />
                                                         </div>
                                                     )}
@@ -455,12 +458,12 @@ export default function ClassesPage() {
 
             {/* ── Create Modal ── */}
             {showCreate && (
-                <Modal title="Tambah Kelas" onClose={() => setShowCreate(false)}>
+                <Modal title={t("classes.add")} onClose={() => setShowCreate(false)}>
                     {!activeYear && (
                         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
                             <AlertCircle size={14} className="text-amber-500 shrink-0" />
                             <p className="text-xs text-amber-700">
-                                Tidak ada tahun ajaran aktif.
+                                {t("classes.noActiveAy")}
                             </p>
                         </div>
                     )}
@@ -468,7 +471,7 @@ export default function ClassesPage() {
                         <div className="flex items-center gap-2 bg-[#006D77]/6 border border-[#006D77]/15 rounded-lg px-3 py-2 mb-4">
                             <GraduationCap size={14} className="text-[#006D77] shrink-0" />
                             <p className="text-xs text-[#006D77]">
-                                Akan ditambahkan ke:{" "}
+                                {t("classes.addedTo")}{" "}
                                 <span className="font-bold">{activeYear.year_range}</span>
                             </p>
                         </div>
@@ -481,12 +484,12 @@ export default function ClassesPage() {
                     <form onSubmit={handleCreate} className="space-y-4">
                         <div>
                             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                Nama Kelas <span className="text-red-400">*</span>
+                                {t("classes.formName")} <span className="text-red-400">*</span>
                             </label>
                             <input
                                 type="text"
                                 required
-                                placeholder="Contoh: Kelas 6A"
+                                placeholder={t("classes.formNamePh")}
                                 value={createForm.name}
                                 onChange={(e) =>
                                     setCreateForm({ ...createForm, name: e.target.value })
@@ -497,7 +500,7 @@ export default function ClassesPage() {
                         <div className="flex gap-4">
                             <div className="flex-1">
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                    Bab Awal <span className="text-red-400">*</span>
+                                    {t("classes.formStart")} <span className="text-red-400">*</span>
                                 </label>
                                 <input
                                     type="number"
@@ -513,7 +516,7 @@ export default function ClassesPage() {
                             </div>
                             <div className="flex-1">
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                    Bab Akhir <span className="text-red-400">*</span>
+                                    {t("classes.formEnd")} <span className="text-red-400">*</span>
                                 </label>
                                 <input
                                     type="number"
@@ -530,7 +533,7 @@ export default function ClassesPage() {
                         </div>
                         <div>
                             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                Guru Pengajar
+                                {t("classes.formTeacher")}
                             </label>
                             <select
                                 value={createForm.teacher_id}
@@ -539,7 +542,7 @@ export default function ClassesPage() {
                                 }
                                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] bg-white"
                             >
-                                <option value="">Pilih guru (Bisa nanti)</option>
+                                <option value="">{t("classes.formTeacherOpt")}</option>
                                 {teachers.map((t) => (
                                     <option key={t.id} value={t.id}>
                                         {t.name}
@@ -553,7 +556,7 @@ export default function ClassesPage() {
                                 onClick={() => setShowCreate(false)}
                                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50"
                             >
-                                Batal
+                                {t("classes.cancel")}
                             </button>
                             <button
                                 type="submit"
@@ -561,7 +564,7 @@ export default function ClassesPage() {
                                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
                                 style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}
                             >
-                                {createLoading ? "Menyimpan..." : "Tambah Kelas"}
+                                {createLoading ? t("classes.saving") : t("classes.createBtn")}
                             </button>
                         </div>
                     </form>
@@ -573,13 +576,13 @@ export default function ClassesPage() {
             {
                 editClass && (
                     <Modal
-                        title={`Edit Kelas`}
+                        title={t("classes.editClass")}
                         onClose={() => setEditClass(null)}
                     >
                         <form onSubmit={handleUpdate} className="space-y-4">
                             <div>
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                    Nama Kelas <span className="text-red-400">*</span>
+                                    {t("classes.formName")} <span className="text-red-400">*</span>
                                 </label>
                                 <input
                                     type="text"
@@ -593,7 +596,7 @@ export default function ClassesPage() {
                             <div className="flex gap-4">
                                 <div className="flex-1">
                                     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                        Bab Awal <span className="text-red-400">*</span>
+                                        {t("classes.formStart")} <span className="text-red-400">*</span>
                                     </label>
                                     <input
                                         type="number"
@@ -607,7 +610,7 @@ export default function ClassesPage() {
                                 </div>
                                 <div className="flex-1">
                                     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                        Bab Akhir <span className="text-red-400">*</span>
+                                        {t("classes.formEnd")} <span className="text-red-400">*</span>
                                     </label>
                                     <input
                                         type="number"
@@ -622,14 +625,14 @@ export default function ClassesPage() {
                             </div>
                             <div>
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
-                                    Guru Pengajar
+                                    {t("classes.formTeacher")}
                                 </label>
                                 <select
                                     value={editForm.teacher_id}
                                     onChange={(e) => setEditForm({ ...editForm, teacher_id: e.target.value })}
                                     className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#006D77] bg-white"
                                 >
-                                    <option value="">Pilih guru (Bisa nanti)</option>
+                                    <option value="">{t("classes.formTeacherOpt")}</option>
                                     {teachers.map((t) => (
                                         <option key={t.id} value={t.id}>
                                             {t.name}
@@ -643,7 +646,7 @@ export default function ClassesPage() {
                                     onClick={() => setEditClass(null)}
                                     className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50"
                                 >
-                                    Batal
+                                    {t("classes.cancel")}
                                 </button>
                                 <button
                                     type="submit"
@@ -651,7 +654,7 @@ export default function ClassesPage() {
                                     className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
                                     style={{ background: "linear-gradient(135deg, #006D77, #004f54)" }}
                                 >
-                                    {editLoading ? "Menyimpan..." : "Simpan Perubahan"}
+                                    {editLoading ? t("classes.saving") : t("classes.save")}
                                 </button>
                             </div>
                         </form>
@@ -662,24 +665,23 @@ export default function ClassesPage() {
             {/* ── Delete Confirm ── */}
             {
                 deleteId && (
-                    <Modal title="Hapus Kelas?" onClose={() => setDeleteId(null)}>
+                    <Modal title={t("classes.deleteTitle")} onClose={() => setDeleteId(null)}>
                         <p className="text-sm text-gray-600 mb-6">
-                            Kelas ini dan semua data terkait (mata pelajaran, pendaftaran siswa)
-                            akan dihapus permanen.
+                            {t("classes.deleteDesc")}
                         </p>
                         <div className="flex gap-3">
                             <button
                                 onClick={() => setDeleteId(null)}
                                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50"
                             >
-                                Batal
+                                {t("classes.cancel")}
                             </button>
                             <button
                                 onClick={handleDelete}
                                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-500 hover:bg-red-600 flex items-center justify-center gap-2"
                             >
                                 <Trash2 size={14} />
-                                Hapus
+                                {t("classes.deleteBtn")}
                             </button>
                         </div>
                     </Modal>

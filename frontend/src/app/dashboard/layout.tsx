@@ -39,6 +39,8 @@ import {
 } from "../../lib/roleHelper";
 
 import { NotificationBell } from "./notifications/page";
+import LanguageDropdown from "@/components/LanguageDropdown";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 const ICON_MAP: Record<string, React.ElementType> = {
     LayoutDashboard, Users, CalendarDays, BookOpen, GraduationCap,
@@ -47,6 +49,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+    const { t } = useLanguage();
     const [collapsed, setCollapsed] = useState(false);
     const [role, setRole] = useState<Role>("student");
     const [userName, setUserName] = useState("Pengguna");
@@ -111,9 +114,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .toUpperCase()
         .slice(0, 2);
 
-    const currentPage = navItems.find(
+    const _currentItem = navItems.find(
         (n) => n.href === pathname || (n.href !== "/dashboard" && pathname.startsWith(n.href))
-    )?.name ?? "Dashboard";
+    );
+    const currentPage = _currentItem ? (t(`nav.${_currentItem.feature}`) || _currentItem.name) : t("nav.dashboard") || "Dashboard";
 
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || !e.target.files[0] || !fullUser) return;
@@ -197,7 +201,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             <Link
                                 key={item.href}
                                 href={item.href}
-                                title={collapsed ? item.name : undefined}
+                                title={collapsed ? (t(`nav.${item.feature}`) || item.name) : undefined}
                                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group ${collapsed ? "justify-center" : ""
                                     }`}
                                 style={{
@@ -219,7 +223,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             >
                                 <IconComp size={16} className="shrink-0" />
                                 {!collapsed && (
-                                    <span className="truncate flex-1">{item.name}</span>
+                                    <span className="truncate flex-1">{t(`nav.${item.feature}`) || item.name}</span>
                                 )}
                                 {!collapsed && active && (
                                     <div
@@ -266,8 +270,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             (e.currentTarget as HTMLElement).style.color = "rgba(255,100,90,0.55)";
                         }}
                     >
-                        <LogOut size={15} className="shrink-0" />
-                        {!collapsed && <span>Keluar</span>}
+                        <LogOut size={16} className="shrink-0" />
+                        {!collapsed && <span className="font-bold">{t("nav.logout")}</span>}
                     </Link>
                 </div>
             </aside>
@@ -304,6 +308,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </div>
 
                     <div className="flex items-center gap-3">
+                        <LanguageDropdown />
+                        
                         {/* Notification Bell */}
                         <div
                             className="relative w-8 h-8 rounded-xl flex items-center justify-center"

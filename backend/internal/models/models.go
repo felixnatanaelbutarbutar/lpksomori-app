@@ -43,6 +43,8 @@ type Class struct {
 	AcademicYearID int          `gorm:"not null"                  json:"academic_year_id"`
 	AcademicYear   AcademicYear `gorm:"foreignKey:AcademicYearID" json:"academic_year,omitempty"`
 	Name           string       `gorm:"not null"                  json:"name"`
+	NameEn         string       `                                 json:"name_en"`
+	NameJa         string       `                                 json:"name_ja"`
 	BabStart       int          `gorm:"not null"                  json:"bab_start"` // e.g., 1
 	BabEnd         int          `gorm:"not null"                  json:"bab_end"`   // e.g., 5
 	TeacherID      *int         `                                 json:"teacher_id"` // nullable
@@ -84,6 +86,8 @@ type Question struct {
 	Activity       ClassActivity    `gorm:"foreignKey:ActivityID"    json:"activity,omitempty"`
 	Type           string           `gorm:"not null"                 json:"type"`
 	QuestionText   string           `gorm:"not null"                 json:"question_text"`
+	QuestionTextEn string           `                                json:"question_text_en"`
+	QuestionTextJa string           `                                json:"question_text_ja"`
 	ImageURL       string           `                                json:"image_url"`
 	AudioURL       string           `                                json:"audio_url"`
 	Points         int              `gorm:"default:1"               json:"points"`
@@ -124,7 +128,11 @@ type Assignment struct {
 	ClassID      int          `gorm:"not null"                 json:"class_id"`
 	Class        Class        `gorm:"foreignKey:ClassID"       json:"class,omitempty"`
 	Title        string       `gorm:"not null"                 json:"title"`
+	TitleEn      string       `                                json:"title_en"`
+	TitleJa      string       `                                json:"title_ja"`
 	Description  string       `gorm:"type:text"                json:"description"`
+	DescriptionEn string      `gorm:"type:text"                json:"description_en"`
+	DescriptionJa string      `gorm:"type:text"                json:"description_ja"`
 	FileURL      string       `                                json:"file_url"`
 	DueDate      *time.Time   `                                json:"due_date"`
 	CreatedByID  *int         `                                json:"created_by_id"`
@@ -157,7 +165,11 @@ type Exam struct {
 	ClassID      int            `gorm:"not null"                 json:"class_id"`
 	Class        Class          `gorm:"foreignKey:ClassID"       json:"class,omitempty"`
 	Title        string         `gorm:"not null"                 json:"title"`
+	TitleEn      string         `                                json:"title_en"`
+	TitleJa      string         `                                json:"title_ja"`
 	Description  string         `gorm:"type:text"                json:"description"`
+	DescriptionEn string        `gorm:"type:text"                json:"description_en"`
+	DescriptionJa string        `gorm:"type:text"                json:"description_ja"`
 	StartTime    *time.Time     `                                json:"start_time"`
 	EndTime      *time.Time     `                                json:"end_time"`
 	MaxAttempts  int            `gorm:"default:1"               json:"max_attempts"`
@@ -180,6 +192,8 @@ type ExamQuestion struct {
 	OrderNum  int             `gorm:"default:0"               json:"order_num"`
 	QuestionType string       `gorm:"not null"                 json:"question_type"` // multiple_choice | essay | file_upload
 	Text      string          `gorm:"type:text;not null"       json:"text"`
+	TextEn    string          `                                json:"text_en"`
+	TextJa    string          `                                json:"text_ja"`
 	Points    int             `gorm:"default:1"               json:"points"`
 	Options   json.RawMessage `gorm:"type:jsonb"               json:"options"` // raw JSON
 	CreatedAt time.Time       `                                json:"created_at"`
@@ -219,7 +233,11 @@ type Notification struct {
 	ID        int       `gorm:"primaryKey;autoIncrement" json:"id"`
 	UserID    int       `gorm:"not null;index"           json:"user_id"`
 	Title     string    `gorm:"not null"                 json:"title"`
+	TitleEn   string    `                                json:"title_en"`
+	TitleJa   string    `                                json:"title_ja"`
 	Message   string    `gorm:"type:text"                json:"message"`
+	MessageEn string    `gorm:"type:text"                json:"message_en"`
+	MessageJa string    `gorm:"type:text"                json:"message_ja"`
 	Type      string    `gorm:"not null"                 json:"type"`
 	RefID     int       `                                json:"ref_id"`   // ID of the referenced entity
 	IsRead    bool      `gorm:"default:false"            json:"is_read"`
@@ -232,8 +250,10 @@ type Notification struct {
 type Announcement struct {
 	ID            int       `gorm:"primaryKey;autoIncrement" json:"id"`
 	Title         string    `gorm:"not null"                 json:"title"`
+	TitleEn       string    `                                json:"title_en"`
 	TitleJa       string    `                                json:"title_ja"`      // Japanese title (optional)
 	Content       string    `gorm:"type:text;not null"       json:"content"`
+	ContentEn     string    `gorm:"type:text"                json:"content_en"`
 	ContentJa     string    `gorm:"type:text"                json:"content_ja"`    // Japanese content (optional)
 	CreatorID     int       `gorm:"not null"                 json:"creator_id"`
 	Creator       User      `gorm:"foreignKey:CreatorID"     json:"creator,omitempty"`
@@ -277,28 +297,36 @@ type AppSetting struct {
 // ─── LearningMaterial (Modul Materi) ──────────────────────────────────────────
 // Instructional content like PDFs or Video links.
 type LearningMaterial struct {
-	ID          int       `gorm:"primaryKey;autoIncrement" json:"id"`
-	ClassID     int       `gorm:"not null"                 json:"class_id"`
-	Class       Class     `gorm:"foreignKey:ClassID"       json:"class,omitempty"`
-	Title       string    `gorm:"not null"                 json:"title"`
-	Description string    `gorm:"type:text"                json:"description"`
-	Type        string    `gorm:"not null"                 json:"type"` // "pdf" | "video" | "link"
-	URL         string    `gorm:"not null"                 json:"url"`  // internal file url or external link
-	CreatedAt   time.Time `                                json:"created_at"`
-	UpdatedAt   time.Time `                                json:"updated_at"`
+	ID            int       `gorm:"primaryKey;autoIncrement" json:"id"`
+	ClassID       int       `gorm:"not null"                 json:"class_id"`
+	Class         Class     `gorm:"foreignKey:ClassID"       json:"class,omitempty"`
+	Title         string    `gorm:"not null"                 json:"title"`
+	TitleEn       string    `                                json:"title_en"`
+	TitleJa       string    `                                json:"title_ja"`
+	Description   string    `gorm:"type:text"                json:"description"`
+	DescriptionEn string    `gorm:"type:text"                json:"description_en"`
+	DescriptionJa string    `gorm:"type:text"                json:"description_ja"`
+	Type          string    `gorm:"not null"                 json:"type"` // "pdf" | "video" | "link"
+	URL           string    `gorm:"not null"                 json:"url"`  // internal file url or external link
+	CreatedAt     time.Time `                                json:"created_at"`
+	UpdatedAt     time.Time `                                json:"updated_at"`
 }
 
 // ─── Question Bank ────────────────────────────────────────────────────────────
 // Library of reusable questions that can be imported into Exams.
 type QuestionBank struct {
-	ID          int            `gorm:"primaryKey;autoIncrement" json:"id"`
-	Title       string         `gorm:"not null"                 json:"title"`
-	Description string         `gorm:"type:text"                json:"description"`
-	CreatorID   *int           `                                json:"creator_id"`
-	Creator     *User          `gorm:"foreignKey:CreatorID"     json:"creator,omitempty"`
-	CreatedAt   time.Time      `                                json:"created_at"`
-	UpdatedAt   time.Time      `                                json:"updated_at"`
-	Questions   []BankQuestion `gorm:"foreignKey:BankID;constraint:OnDelete:CASCADE" json:"questions,omitempty"`
+	ID            int            `gorm:"primaryKey;autoIncrement" json:"id"`
+	Title         string         `gorm:"not null"                 json:"title"`
+	TitleEn       string         `                                json:"title_en"`
+	TitleJa       string         `                                json:"title_ja"`
+	Description   string         `gorm:"type:text"                json:"description"`
+	DescriptionEn string         `gorm:"type:text"                json:"description_en"`
+	DescriptionJa string         `gorm:"type:text"                json:"description_ja"`
+	CreatorID     *int           `                                json:"creator_id"`
+	Creator       *User          `gorm:"foreignKey:CreatorID"     json:"creator,omitempty"`
+	CreatedAt     time.Time      `                                json:"created_at"`
+	UpdatedAt     time.Time      `                                json:"updated_at"`
+	Questions     []BankQuestion `gorm:"foreignKey:BankID;constraint:OnDelete:CASCADE" json:"questions,omitempty"`
 }
 
 // ─── Bank Question ────────────────────────────────────────────────────────────
@@ -310,6 +338,8 @@ type BankQuestion struct {
 	OrderNum     int             `gorm:"default:0"                json:"order_num"`
 	QuestionType string          `gorm:"not null"                 json:"question_type"` // multiple_choice | essay | file_upload
 	Text         string          `gorm:"type:text;not null"       json:"text"`
+	TextEn       string          `                                json:"text_en"`
+	TextJa       string          `                                json:"text_ja"`
 	Points       int             `gorm:"default:1"                json:"points"`
 	Options      json.RawMessage `gorm:"type:jsonb"               json:"options"` // raw JSON
 	CreatedAt    time.Time       `                                json:"created_at"`

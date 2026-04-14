@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Merriweather, Inter } from "next/font/google";
+import { LanguageProvider } from "@/i18n/LanguageContext";
 import "./globals.css";
 
 const merriweather = Merriweather({
@@ -28,7 +29,9 @@ export default function RootLayout({
   return (
     <html lang="id">
       <body className={`${merriweather.variable} ${inter.variable} font-sans antialiased`}>
-        {children}
+        <LanguageProvider>
+          {children}
+        </LanguageProvider>
       </body>
     </html>
   );

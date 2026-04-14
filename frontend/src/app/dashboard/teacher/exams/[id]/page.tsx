@@ -7,6 +7,7 @@ import {
     CheckSquare, AlignLeft, Paperclip, Users, Settings, Save, Edit3, CheckCircle,
     Database, Upload, Package
 } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 const API = "http://localhost:8080/api/v1";
 
@@ -50,10 +51,17 @@ interface ExamAnswer {
     question: ExamQuestion;
 }
 
-const TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-    multiple_choice: { label: "Pilihan Ganda", icon: <CheckSquare size={13} />, color: "bg-blue-50 text-blue-600 border-blue-100" },
-    essay: { label: "Essay", icon: <AlignLeft size={13} />, color: "bg-purple-50 text-purple-600 border-purple-100" },
-    file_upload: { label: "Upload File", icon: <Paperclip size={13} />, color: "bg-amber-50 text-amber-600 border-amber-100" },
+// Note: TYPE_LABELS will be dynamically resolved in render to support t()
+type QType = "multiple_choice" | "essay" | "file_upload";
+const ICONS: Record<string, React.ReactNode> = {
+    multiple_choice: <CheckSquare size={13} />,
+    essay: <AlignLeft size={13} />,
+    file_upload: <Paperclip size={13} />
+};
+const COLORS: Record<string, string> = {
+    multiple_choice: "bg-blue-50 text-blue-600 border-blue-100",
+    essay: "bg-purple-50 text-purple-600 border-purple-100",
+    file_upload: "bg-amber-50 text-amber-600 border-amber-100"
 };
 
 function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; }) {
@@ -83,6 +91,7 @@ function formatDate(iso: string | null) {
 }
 
 export default function ExamManagePage() {
+    const { t } = useLanguage();
     const router = useRouter();
     const { id } = useParams();
     const token = typeof window !== "undefined" ? localStorage.getItem("mori_token") ?? "" : "";
@@ -242,7 +251,7 @@ export default function ExamManagePage() {
     };
 
     const handleDeleteQuestion = async (qID: number) => {
-        if (!confirm("Hapus soal ini?")) return;
+        if (!confirm(t("examDetail.deleteConfirm"))) return;
         await fetch(`${API}/exams/questions/${qID}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
         fetchExam();
     };
@@ -317,7 +326,7 @@ export default function ExamManagePage() {
     };
 
     if (loading) return <div className="p-10 flex justify-center"><div className="animate-spin w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full" /></div>;
-    if (!exam) return <div className="p-10 text-center">Ujian tidak ditemukan.</div>;
+    if (!exam) return <div className="p-10 text-center">{t("examDetail.notFound")}</div>;
 
     const OPTION_LETTERS = ["A", "B", "C", "D", "E"];
 
@@ -332,19 +341,19 @@ export default function ExamManagePage() {
                 </button>
                 <div>
                     <h1 className="text-2xl font-serif font-bold text-[#0D1B2A]">{exam.title}</h1>
-                    <p className="text-sm text-gray-500">Kelola soal, waktu ujian, dan penilaian murid.</p>
+                    <p className="text-sm text-gray-500">{t("examDetail.subtitle")}</p>
                 </div>
             </div>
 
             <div className="flex gap-4 border-b border-gray-200">
                 <button onClick={() => setActiveTab("soal")} className={`px-4 py-3 border-b-2 font-semibold transition-colors ${activeTab === "soal" ? "border-purple-600 text-purple-700" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
-                    Daftar Soal ({(exam.questions||[]).length})
+                    {t("examDetail.tabQuestions")} ({(exam.questions||[]).length})
                 </button>
                 <button onClick={() => setActiveTab("penilaian")} className={`px-4 py-3 border-b-2 font-semibold transition-colors ${activeTab === "penilaian" ? "border-purple-600 text-purple-700" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
-                    Penilaian Siswa
+                    {t("examDetail.tabGrading")}
                 </button>
                 <button onClick={() => setActiveTab("pengaturan")} className={`px-4 py-3 border-b-2 font-semibold transition-colors ${activeTab === "pengaturan" ? "border-purple-600 text-purple-700" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
-                    Pengaturan Waktu
+                    {t("examDetail.tabSettings")}
                 </button>
             </div>
 
@@ -358,24 +367,24 @@ export default function ExamManagePage() {
                             setMcOptions([{ text: "", is_correct: true }, { text: "", is_correct: false }, { text: "", is_correct: false }, { text: "", is_correct: false }]);
                             setShowAddQ(true);
                         }} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white shadow-md hover:scale-105 transition-transform" style={{ background: "linear-gradient(135deg, #7B5EA7, #5a3d85)" }}>
-                            <Plus size={18} /> Tambah Soal
+                            <Plus size={18} /> {t("examDetail.addQuestionBtn")}
                         </button>
                         <button onClick={() => setShowBulkAdd(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border-2 border-[#7B5EA7] text-[#7B5EA7] bg-white hover:bg-purple-50 transition-colors shadow-sm">
-                            <Plus size={18} /> Buat Banyak Pilihan Ganda
+                            <Plus size={18} /> {t("examDetail.bulkAddBtn")}
                         </button>
                         <button onClick={openImportBank} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-colors shadow-sm">
-                            <Database size={16} /> Import dari Bank Soal
+                            <Database size={16} /> {t("examDetail.importBankBtn")}
                         </button>
                     </div>
 
                     {(exam.questions || []).length === 0 ? (
                         <div className="bg-white rounded-2xl border border-gray-100 py-16 text-center shadow-sm">
-                            <p className="text-gray-500 font-medium">Belum ada pertanyaan. Silakan tambahkan soal.</p>
+                            <p className="text-gray-500 font-medium">{t("examDetail.noQuestions")}</p>
                         </div>
                     ) : (
                         <div className="space-y-4">
                             {(exam.questions || []).map((q, i) => {
-                                const m = TYPE_LABELS[q.question_type];
+                                const typeLabel = q.question_type === "multiple_choice" ? t("examDetail.typeMc") : q.question_type === "essay" ? t("examDetail.typeEssay") : t("examDetail.typeUpload");
                                 const opts: McOption[] = (() => {
                                     if (!q.options) return [];
                                     if (typeof q.options === "string") {
@@ -397,8 +406,8 @@ export default function ExamManagePage() {
                                             <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-700 flex justify-center items-center font-bold">{i + 1}</div>
                                             <div className="flex-1">
                                                 <div className="flex gap-2 mb-2">
-                                                    <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border flex items-center gap-1.5 ${m.color}`}>{m.icon} {m.label}</span>
-                                                    <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border bg-gray-50 text-gray-500 border-gray-200">{q.points} Poin</span>
+                                                    <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border flex items-center gap-1.5 ${COLORS[q.question_type]}`}>{ICONS[q.question_type]} {typeLabel}</span>
+                                                    <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border bg-gray-50 text-gray-500 border-gray-200">{q.points} {t("examDetail.points")}</span>
                                                 </div>
                                                 <p className="text-gray-800 font-medium leading-relaxed mb-4 whitespace-pre-wrap">{q.text}</p>
                                                 {q.question_type === "multiple_choice" && opts.length > 0 && (
@@ -426,19 +435,19 @@ export default function ExamManagePage() {
             {activeTab === "penilaian" && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden h-fit">
-                        <div className="p-4 bg-gray-50 border-b border-gray-100 font-semibold text-[#0D1B2A] flex items-center gap-2"><Users size={18} /> Daftar Siswa ({students.length})</div>
-                        {loadingStudents ? <div className="p-5 text-center text-sm text-gray-500">Memuat...</div> : (
+                        <div className="p-4 bg-gray-50 border-b border-gray-100 font-semibold text-[#0D1B2A] flex items-center gap-2"><Users size={18} /> {t("examDetail.studentList")} ({students.length})</div>
+                        {loadingStudents ? <div className="p-5 text-center text-sm text-gray-500">{t("examDetail.loadingStudents")}</div> : (
                             <div className="divide-y divide-gray-50 max-h-[500px] overflow-y-auto">
                                 {students.map(s => (
                                     <button key={s.id} onClick={() => fetchStudentAnswers(s.id)} className={`w-full text-left px-5 py-4 hover:bg-purple-50 transition-colors flex justify-between items-center ${selectedStudent?.id === s.id ? "bg-purple-50" : ""}`}>
                                         <div>
                                             <div className={`font-semibold text-sm ${selectedStudent?.id === s.id ? "text-purple-700" : "text-[#0D1B2A]"}`}>{s.name}</div>
-                                            <div className="text-xs text-gray-400">{s.nis || "NIS Kosong"}</div>
+                                            <div className="text-xs text-gray-400">{s.nis || t("examDetail.nisEmpty")}</div>
                                         </div>
                                         <ChevronLeft size={16} className={`text-gray-300 transform rotate-180 transition-transform ${selectedStudent?.id === s.id ? "translate-x-1 text-purple-400" : ""}`} />
                                     </button>
                                 ))}
-                                {students.length === 0 && <div className="p-5 text-center text-sm text-gray-500">Belum ada siswa yang mengerjakan.</div>}
+                                {students.length === 0 && <div className="p-5 text-center text-sm text-gray-500">{t("examDetail.noStudents")}</div>}
                             </div>
                         )}
                     </div>
@@ -447,18 +456,18 @@ export default function ExamManagePage() {
                         {!selectedStudent ? (
                             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 flex flex-col items-center justify-center text-center">
                                 <FileText size={48} className="text-gray-200 mb-4" />
-                                <h3 className="text-[#0D1B2A] font-semibold text-lg">Pilih Siswa</h3>
-                                <p className="text-sm text-gray-500">Klik nama siswa di samping untuk melihat hasil ujian mereka dan memberi nilai.</p>
+                                <h3 className="text-[#0D1B2A] font-semibold text-lg">{t("examDetail.selectStudent")}</h3>
+                                <p className="text-sm text-gray-500">{t("examDetail.selectStudentSub")}</p>
                             </div>
                         ) : gradingLoading ? (
                              <div className="p-10 flex justify-center"><div className="animate-spin w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full" /></div>
                         ) : (
                             <div className="space-y-4">
                                 <div className="flex bg-white rounded-2xl p-4 shadow-sm border border-purple-100 font-semibold text-purple-900 justify-between items-center">
-                                    <span>Hasil perkerjaan: {selectedStudent.name}</span>
+                                    <span>{t("examDetail.gradingResult")}{selectedStudent.name}</span>
                                     {/* count total score */}
                                     <span className="text-2xl font-black text-purple-600">
-                                        Total: {studentAnswers.reduce((acc, curr) => acc + (curr.score || 0), 0)}
+                                        {t("examDetail.scoreTotal")}: {studentAnswers.reduce((acc, curr) => acc + (curr.score || 0), 0)}
                                     </span>
                                 </div>
                                 {studentAnswers.map((ans, i) => (
@@ -476,12 +485,12 @@ export default function ExamManagePage() {
                                                         if (!isNaN(val) && val !== ans.score) saveScore(ans.id, val);
                                                     }}
                                                     className={`w-20 px-3 py-1.5 border rounded-lg text-sm font-bold text-center outline-none focus:ring-2 focus:ring-purple-500 ${ans.question?.question_type === "multiple_choice" ? "bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed" : "border-purple-200 text-purple-700 bg-white"}`} />
-                                                <span className="text-xs text-gray-400 font-bold">/ {ans.question?.points} Poin</span>
-                                                {ans.question?.question_type === "multiple_choice" && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold ml-1">Otomatis</span>}
+                                                                <span className="text-xs text-gray-400 font-bold">/ {ans.question?.points} {t("examDetail.points")}</span>
+                                                {ans.question?.question_type === "multiple_choice" && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold ml-1">{t("examDetail.auto")}</span>}
                                             </div>
                                         </div>
                                         <div className="pl-11 pr-5 pb-2">
-                                            <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2 border-b pb-1 inline-block">Jawaban Siswa</div>
+                                            <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2 border-b pb-1 inline-block">{t("examDetail.studentAnswersLabel")}</div>
                                             
                                             {ans.question?.question_type === "multiple_choice" ? (
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
@@ -501,8 +510,8 @@ export default function ExamManagePage() {
                                                                 </div>
                                                                 <span className="text-sm leading-tight pt-0.5">{opt.text}</span>
                                                                 <div className="ml-auto flex gap-1">
-                                                                    {isCorrect && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold whitespace-nowrap">Kunci</span>}
-                                                                    {isSelected && <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold whitespace-nowrap">Dipilih Siswa</span>}
+                                                                    {isCorrect && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold whitespace-nowrap">{t("examDetail.keyOpt")}</span>}
+                                                                    {isSelected && <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold whitespace-nowrap">{t("examDetail.selectedOpt")}</span>}
                                                                 </div>
                                                             </div>
                                                         );
@@ -513,11 +522,11 @@ export default function ExamManagePage() {
                                                     {ans.answer_text ? (
                                                         <p className="text-sm text-gray-700 bg-purple-50 p-3 rounded-xl border border-purple-100 whitespace-pre-wrap">{ans.answer_text}</p>
                                                     ) : (
-                                                        <p className="text-sm text-gray-400 italic">Kosong/Tidak ada teks</p>
+                                                        <p className="text-sm text-gray-400 italic">{t("examDetail.emptyAns")}</p>
                                                     )}
                                                     {ans.file_url && (
                                                         <a href={ans.file_url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg font-medium hover:bg-blue-100">
-                                                            <Paperclip size={14} /> Lihat File Lampiran
+                                                            <Paperclip size={14} /> {t("examDetail.viewFile")}
                                                         </a>
                                                     )}
                                                 </>
@@ -534,33 +543,33 @@ export default function ExamManagePage() {
             {/* TAB: PENGATURAN */}
             {activeTab === "pengaturan" && (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 max-w-2xl">
-                    <h2 className="text-lg font-bold text-[#0D1B2A] flex items-center gap-2 border-b pb-4 mb-6"><Settings size={20} className="text-purple-600"/> Edit Detail Ujian</h2>
+                    <h2 className="text-lg font-bold text-[#0D1B2A] flex items-center gap-2 border-b pb-4 mb-6"><Settings size={20} className="text-purple-600"/> {t("examDetail.editDetail")}</h2>
                     <form onSubmit={handleEditExam} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">Judul Ujian</label>
+                            <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">{t("teacherExams.formTitle")}</label>
                             <input type="text" required value={editForm.title} onChange={e => setEditForm(p => ({ ...p, title: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500" />
                         </div>
                         <div>
-                            <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">Deskripsi / Peraturan</label>
+                            <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">{t("teacherExams.formDesc")}</label>
                             <textarea rows={3} value={editForm.description} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500 resize-none" />
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                             <div>
-                                <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5 flex items-center gap-2">Maks Akses (Attempt)</label>
+                                <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5 flex items-center gap-2">{t("teacherExams.formLimit")}</label>
                                 <input type="number" min={1} value={editForm.max_attempts} onChange={e => setEditForm(p => ({ ...p, max_attempts: parseInt(e.target.value) || 1 }))} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500 bg-white" />
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5 flex items-center gap-2"><Clock size={14} className="text-purple-500" /> Waktu Mulai</label>
+                                <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5 flex items-center gap-2"><Clock size={14} className="text-purple-500" /> {t("teacherExams.start")}</label>
                                 <input type="datetime-local" value={editForm.start_time} onChange={e => setEditForm(p => ({ ...p, start_time: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500 bg-white" />
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5 flex items-center gap-2"><Clock size={14} className="text-red-400" /> Waktu Selesai</label>
+                                <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5 flex items-center gap-2"><Clock size={14} className="text-red-400" /> {t("teacherExams.end")}</label>
                                 <input type="datetime-local" value={editForm.end_time} onChange={e => setEditForm(p => ({ ...p, end_time: e.target.value }))} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500 bg-white" />
                             </div>
                         </div>
                         <div className="pt-6">
                             <button disabled={editLoading} type="submit" className="w-full py-3.5 rounded-xl font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 flex justify-center items-center gap-2">
-                                <Save size={18} /> Simpan Perubahan
+                                <Save size={18} /> {t("examDetail.saveChanges")}
                             </button>
                         </div>
                     </form>
@@ -569,17 +578,17 @@ export default function ExamManagePage() {
 
             {/* MODALS */}
             {showBulkAdd && (
-                <Modal title="Buat Banyak Pilihan Ganda Sekaligus" onClose={() => setShowBulkAdd(false)}>
+                <Modal title={t("examDetail.bulkModalTitle")} onClose={() => setShowBulkAdd(false)}>
                     <form onSubmit={handleBulkAddQuestion} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">Jumlah Opsi (Default 5)</label>
+                            <label className="block text-sm font-semibold text-[#0D1B2A] mb-1.5">{t("examDetail.bulkModalCount")}</label>
                             <input type="number" min={1} max={50} value={bulkCount} onChange={e => setBulkCount(parseInt(e.target.value) || 1)} className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-purple-500" />
-                            <p className="text-xs text-gray-500 mt-2">Ini akan membuat {bulkCount} slot soal Pilihan Ganda kosong tempat Anda bisa mengetik langsung dengan cepat nanti.</p>
+                            <p className="text-xs text-gray-500 mt-2">{t("examDetail.bulkModalHelp")}</p>
                         </div>
                         <div className="flex gap-3 pt-4 border-t border-gray-100">
-                            <button type="button" onClick={() => setShowBulkAdd(false)} className="flex-1 py-3 items-center rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">Batal</button>
+                            <button type="button" onClick={() => setShowBulkAdd(false)} className="flex-1 py-3 items-center rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">{t("examDetail.cancel")}</button>
                             <button type="submit" disabled={bulkLoading} className="flex-1 py-3 flex justify-center items-center rounded-xl text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50">
-                                Generate
+                                {t("examDetail.generateBtn")}
                             </button>
                         </div>
                     </form>
@@ -587,17 +596,17 @@ export default function ExamManagePage() {
             )}
 
             {showAddQ && (
-                <Modal title={editingQuestionId ? "Edit Pertanyaan" : "Tambah Pertanyaan"} onClose={() => setShowAddQ(false)} wide>
+                <Modal title={editingQuestionId ? t("examDetail.editQModalTitle") : t("examDetail.addQModalTitle")} onClose={() => setShowAddQ(false)} wide>
                     <form onSubmit={handleSaveQuestion} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-semibold text-[#0D1B2A] mb-3">Tipe Pertanyaan</label>
+                            <label className="block text-sm font-semibold text-[#0D1B2A] mb-3">{t("examDetail.qTypeLabel")}</label>
                             <div className="grid grid-cols-3 gap-3">
-                                {(["multiple_choice", "essay", "file_upload"] as const).map((t) => {
-                                    const m = TYPE_LABELS[t];
+                                {(["multiple_choice", "essay", "file_upload"] as QType[]).map((type) => {
+                                    const typeLabel = type === "multiple_choice" ? t("examDetail.typeMc") : type === "essay" ? t("examDetail.typeEssay") : t("examDetail.typeUpload");
                                     return (
-                                        <button key={t} type="button" onClick={() => setQType(t)}
-                                            className={`flex flex-col items-center gap-2 py-4 rounded-xl border text-sm font-semibold transition-all ${qType === t ? "border-purple-400 bg-purple-50 text-purple-700 shadow-sm" : "border-gray-200 text-gray-500 hover:border-purple-200"}`}>
-                                            {m.icon} {m.label}
+                                        <button key={type} type="button" onClick={() => setQType(type)}
+                                            className={`flex flex-col items-center gap-2 py-4 rounded-xl border text-sm font-semibold transition-all ${qType === type ? "border-purple-400 bg-purple-50 text-purple-700 shadow-sm" : "border-gray-200 text-gray-500 hover:border-purple-200"}`}>
+                                            {ICONS[type]} {typeLabel}
                                         </button>
                                     );
                                 })}
@@ -606,18 +615,18 @@ export default function ExamManagePage() {
 
                         <div>
                             <div className="flex justify-between items-end mb-1.5">
-                                <label className="block text-sm font-semibold text-[#0D1B2A]">Pertanyaan</label>
-                                <label className="block text-sm font-semibold text-[#0D1B2A] flex items-center gap-2">Poin Nilai:
+                                <label className="block text-sm font-semibold text-[#0D1B2A]">{t("examDetail.qTextLabel")}</label>
+                                <label className="block text-sm font-semibold text-[#0D1B2A] flex items-center gap-2">{t("examDetail.pointsLabel")}
                                     <input type="number" min={1} max={100} value={qPoints} onChange={(e) => setQPoints(parseInt(e.target.value) || 1)} className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-center" />
                                 </label>
                             </div>
-                            <textarea required rows={4} placeholder="Tulis teks pertanyaan di sini..." value={qText} onChange={(e) => setQText(e.target.value)}
+                            <textarea required rows={4} placeholder={t("examDetail.qTextPlaceholder")} value={qText} onChange={(e) => setQText(e.target.value)}
                                 className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-purple-500 resize-y" />
                         </div>
 
                         {qType === "multiple_choice" && (
                             <div className="space-y-3">
-                                <label className="block text-sm font-semibold text-[#0D1B2A]">Opsi Pilihan Ganda (Tandai yang benar)</label>
+                                <label className="block text-sm font-semibold text-[#0D1B2A]">{t("examDetail.mcLabel")}</label>
                                 {mcOptions.map((opt, i) => (
                                     <div key={i} className="flex items-center gap-3">
                                         <button type="button" onClick={() => setMcOptions(prev => prev.map((o, idx) => ({ ...o, is_correct: idx === i })))}
@@ -625,7 +634,7 @@ export default function ExamManagePage() {
                                             <CheckSquare size={14} className={opt.is_correct ? "text-white" : "text-transparent"} />
                                         </button>
                                         <div className="w-8 h-8 rounded-lg bg-gray-50 border border-gray-100 flex justify-center items-center font-bold text-gray-500">{OPTION_LETTERS[i]}</div>
-                                        <input type="text" placeholder={`Teks opsi ${OPTION_LETTERS[i]}...`} value={opt.text} onChange={(e) => setMcOptions(prev => prev.map((o, idx) => (idx === i ? { ...o, text: e.target.value } : o)))}
+                                        <input type="text" placeholder={`${t("examDetail.optPlaceholder")} ${OPTION_LETTERS[i]}...`} value={opt.text} onChange={(e) => setMcOptions(prev => prev.map((o, idx) => (idx === i ? { ...o, text: e.target.value } : o)))}
                                             className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-purple-500" />
                                         {mcOptions.length > 2 && (
                                             <button type="button" onClick={() => setMcOptions(prev => prev.filter((_, idx) => idx !== i))} className="w-8 h-8 flex justify-center items-center hover:bg-red-50 hover:text-red-500 rounded-lg text-gray-300"><Trash2 size={16} /></button>
@@ -633,14 +642,14 @@ export default function ExamManagePage() {
                                     </div>
                                 ))}
                                 {mcOptions.length < 5 && (
-                                    <button type="button" onClick={() => setMcOptions(prev => [...prev, { text: "", is_correct: false }])} className="text-sm font-semibold text-purple-600 pl-[4.5rem] mt-2">+ Tambah Opsi</button>
+                                    <button type="button" onClick={() => setMcOptions(prev => [...prev, { text: "", is_correct: false }])} className="text-sm font-semibold text-purple-600 pl-[4.5rem] mt-2">{t("examDetail.addOptBtn")}</button>
                                 )}
                             </div>
                         )}
 
                         <div className="flex gap-3 pt-6 border-t border-gray-100">
-                            <button type="button" onClick={() => setShowAddQ(false)} className="px-6 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">Batal</button>
-                            <button type="submit" disabled={addQLoading} className="flex-1 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg, #7B5EA7, #5a3d85)" }}>{addQLoading ? "Menyimpan..." : "Simpan Soal"}</button>
+                            <button type="button" onClick={() => setShowAddQ(false)} className="px-6 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50">{t("examDetail.cancel")}</button>
+                            <button type="submit" disabled={addQLoading} className="flex-1 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg, #7B5EA7, #5a3d85)" }}>{addQLoading ? t("examDetail.saving") : t("examDetail.saveQBtn")}</button>
                         </div>
                     </form>
                 </Modal>
@@ -648,11 +657,11 @@ export default function ExamManagePage() {
 
             {/* IMPORT FROM BANK SOAL MODAL */}
             {showImportBank && (
-                <Modal title="Import Soal dari Bank Soal" onClose={() => setShowImportBank(false)}>
+                <Modal title={t("examDetail.importModalTitle")} onClose={() => setShowImportBank(false)}>
                     <div className="space-y-4">
                         <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
                             <p className="text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
-                                <Database size={13} /> Pilih paket soal dari bank untuk diimpor ke ujian ini
+                                <Database size={13} /> {t("examDetail.importModalHelp")}
                             </p>
                         </div>
                         {loadingBanks ? (
@@ -660,7 +669,7 @@ export default function ExamManagePage() {
                         ) : banks.length === 0 ? (
                             <div className="text-center py-8 text-sm text-gray-400">
                                 <Package size={32} className="mx-auto mb-2 text-gray-200" />
-                                Belum ada bank soal. Buat terlebih dahulu di menu <strong>Bank Soal</strong>.
+                                {t("examDetail.noBanks")}
                             </div>
                         ) : (
                             <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -671,7 +680,7 @@ export default function ExamManagePage() {
                                             <p className="font-bold text-sm text-[#0D1B2A]">{bank.title}</p>
                                             {bank.description && <p className="text-xs text-gray-400 truncate">{bank.description}</p>}
                                         </div>
-                                        <span className="text-xs text-gray-400 shrink-0">{bank.questions?.length ?? 0} soal</span>
+                                        <span className="text-xs text-gray-400 shrink-0">{bank.questions?.length ?? 0} {t("examDetail.tabQuestions").split(' ')[0]}</span>
                                     </label>
                                 ))}
                             </div>
@@ -682,14 +691,14 @@ export default function ExamManagePage() {
                             </div>
                         )}
                         <div className="flex gap-3 pt-2">
-                            <button onClick={() => setShowImportBank(false)} className="px-4 py-2.5 text-sm text-gray-500 border border-gray-100 rounded-xl hover:bg-gray-50">Tutup</button>
+                            <button onClick={() => setShowImportBank(false)} className="px-4 py-2.5 text-sm text-gray-500 border border-gray-100 rounded-xl hover:bg-gray-50">{t("examDetail.closeBtn")}</button>
                             <button
                                 onClick={handleImportBank}
                                 disabled={!selectedBankId || importingBank}
                                 className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-50 transition-colors"
                             >
                                 <Upload size={15} />
-                                {importingBank ? "Mengimpor..." : "Import ke Ujian Ini"}
+                                {importingBank ? t("examDetail.importing") : t("examDetail.importBtn")}
                             </button>
                         </div>
                     </div>

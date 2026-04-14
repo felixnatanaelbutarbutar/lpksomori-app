@@ -3,8 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useTranslation } from "react-i18next";
-import "../../i18n/config";
+import { useLanguage, LangCode } from "@/i18n/LanguageContext";
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");
@@ -12,7 +11,7 @@ export default function LoginPage() {
     const [errorMsg, setErrorMsg] = useState("");
     const [loading, setLoading] = useState(false);
     const router = useRouter();
-    const { t, i18n } = useTranslation();
+    const { t, lang, setLang } = useLanguage();
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -37,7 +36,7 @@ export default function LoginPage() {
         }
     };
 
-    const LANGS = [
+    const LANGS: { code: LangCode; label: string }[] = [
         { code: "id", label: "ID" },
         { code: "ja", label: "日本語" },
         { code: "en", label: "EN" },
@@ -77,17 +76,17 @@ export default function LoginPage() {
                         className="flex rounded-full p-1 gap-1"
                         style={{ background: "rgba(255,255,255,0.07)" }}
                     >
-                        {LANGS.map((lang) => (
+                        {LANGS.map((l) => (
                             <button
-                                key={lang.code}
-                                onClick={() => i18n.changeLanguage(lang.code)}
+                                key={l.code}
+                                onClick={() => setLang(l.code)}
                                 className="px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200"
                                 style={{
-                                    background: i18n.language === lang.code ? "#fff" : "transparent",
-                                    color: i18n.language === lang.code ? "#0D7A6F" : "rgba(255,255,255,0.55)",
+                                    background: lang === l.code ? "#fff" : "transparent",
+                                    color: lang === l.code ? "#0D7A6F" : "rgba(255,255,255,0.55)",
                                 }}
                             >
-                                {lang.label}
+                                {l.label}
                             </button>
                         ))}
                     </div>
@@ -195,12 +194,12 @@ export default function LoginPage() {
                         {LANGS.map((l) => (
                             <button
                                 key={l.code}
-                                onClick={() => i18n.changeLanguage(l.code)}
+                                onClick={() => setLang(l.code)}
                                 className="px-3 py-1 rounded-full text-xs font-semibold border transition-all"
                                 style={{
-                                    background: i18n.language === l.code ? "var(--accent)" : "transparent",
-                                    color: i18n.language === l.code ? "#fff" : "var(--text-muted)",
-                                    borderColor: i18n.language === l.code ? "var(--accent)" : "var(--border)",
+                                    background: lang === l.code ? "var(--accent)" : "transparent",
+                                    color: lang === l.code ? "#fff" : "var(--text-muted)",
+                                    borderColor: lang === l.code ? "var(--accent)" : "var(--border)",
                                 }}
                             >
                                 {l.label}
