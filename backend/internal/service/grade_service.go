@@ -26,6 +26,7 @@ type StudentRecap struct {
 	ExamAvg          float64            `json:"exam_avg"`
 	FinalScore       float64            `json:"final_score"`
 	Status           string             `json:"status"`
+	IsPublished      bool               `json:"is_published"`
 	Notes            string             `json:"notes"`
 }
 
@@ -56,6 +57,7 @@ func (s *GradeService) GetClassRecap(ctx context.Context, classID int) ([]Studen
 		return nil, err
 	}
 
+	now := time.Now()
 	res := make([]StudentRecap, 0, len(enrollments))
 	for _, en := range enrollments {
 		r := StudentRecap{
@@ -69,18 +71,32 @@ func (s *GradeService) GetClassRecap(ctx context.Context, classID int) ([]Studen
 		// Assignments
 		var sum float64
 		var count float64
-		for _, sub := range allSubs {
-			if sub.StudentID == en.UserID && sub.Grade != nil {
-				title := "Tugas"
-				for _, a := range assignments {
-					if a.ID == sub.AssignmentID {
-						title = a.Title
-						break
+		for _, a := range assignments {
+			var grade float64
+			var hasGrade bool
+			var hasSubmission bool
+			for _, sub := range allSubs {
+				if sub.StudentID == en.UserID && sub.AssignmentID == a.ID {
+					hasSubmission = true
+					if sub.Grade != nil {
+						grade = *sub.Grade
+						hasGrade = true
 					}
+					break
 				}
-				r.AssignmentGrades[title] = *sub.Grade
-				sum += *sub.Grade
+			}
+
+			if hasGrade {
+				r.AssignmentGrades[a.Title] = grade
+				sum += grade
 				count++
+			} else if !hasSubmission && a.DueDate != nil && a.DueDate.Before(now) {
+				// Past due and NO submission at all = auto 0
+				r.AssignmentGrades[a.Title] = 0
+				count++
+			} else {
+				// Submitted but not graded, or not yet due
+				r.AssignmentGrades[a.Title] = -1
 			}
 		}
 		if count > 0 {
@@ -113,6 +129,12 @@ func (s *GradeService) GetClassRecap(ctx context.Context, classID int) ([]Studen
 				r.ExamGrades[ex.Title] = score100
 				examTotal += score100
 				examCount++
+			} else if ex.EndTime != nil && ex.EndTime.Before(now) {
+				r.ExamGrades[ex.Title] = 0
+				examTotal += 0
+				examCount++
+			} else {
+				r.ExamGrades[ex.Title] = -1
 			}
 		}
 		if examCount > 0 {
@@ -123,10 +145,12 @@ func (s *GradeService) GetClassRecap(ctx context.Context, classID int) ([]Studen
 		var savedRecap models.GradeRecap
 		if err := s.db.WithContext(ctx).Where("student_id = ? AND class_id = ?", en.UserID, classID).First(&savedRecap).Error; err == nil {
 			r.Status = savedRecap.Status
+			r.IsPublished = savedRecap.IsPublished
 			r.Notes = savedRecap.Notes
 			r.FinalScore = savedRecap.FinalScore
 		} else {
 			r.Status = "In Progress"
+			r.IsPublished = false
 			r.FinalScore = (r.AssignmentAvg * 0.4) + (r.ExamAvg * 0.6)
 		}
 
@@ -136,7 +160,22 @@ func (s *GradeService) GetClassRecap(ctx context.Context, classID int) ([]Studen
 	return res, nil
 }
 
-func (s *GradeService) SaveRecap(ctx context.Context, classID, studentID int, status, notes string, finalScore float64, teacherID int) (*models.GradeRecap, error) {
+// GetStudentDetailRecap retrieves the detail for a specific student
+func (s *GradeService) GetStudentDetailRecap(ctx context.Context, classID, studentID int) (*StudentRecap, error) {
+	// Simple implementation: reuse GetClassRecap logic and filter
+	recaps, err := s.GetClassRecap(ctx, classID)
+	if err != nil {
+		return nil, err
+	}
+	for _, r := range recaps {
+		if r.StudentID == studentID {
+			return &r, nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
+func (s *GradeService) SaveRecap(ctx context.Context, classID, studentID int, status, notes string, finalScore float64, isPublished bool, teacherID int) (*models.GradeRecap, error) {
 	var recap models.GradeRecap
 	err := s.db.WithContext(ctx).Where("student_id = ? AND class_id = ?", studentID, classID).First(&recap).Error
 	
@@ -145,6 +184,7 @@ func (s *GradeService) SaveRecap(ctx context.Context, classID, studentID int, st
 	recap.Status = status
 	recap.Notes = notes
 	recap.FinalScore = finalScore
+	recap.IsPublished = isPublished
 	recap.TeacherID = teacherID
 	recap.UpdatedAt = time.Now()
 
@@ -161,4 +201,68 @@ func (s *GradeService) SaveRecap(ctx context.Context, classID, studentID int, st
 	}
 
 	return &recap, nil
+}
+
+// ─── Student Recap Summary (all classes, all years) ──────────────────────────
+
+// StudentClassRecapItem matches the shape the frontend expects (compatible with GradeRecap interface)
+type StudentClassRecapItem struct {
+	ID            int           `json:"id"`
+	ClassID       int           `json:"class_id"`
+	Class         *models.Class `json:"class,omitempty"`
+	AssignmentAvg float64       `json:"assignment_avg"`
+	ExamScore     float64       `json:"exam_score"`
+	FinalScore    float64       `json:"final_score"`
+	Status        string        `json:"status"`
+	IsPublished   bool          `json:"is_published"`
+	Notes         string        `json:"notes"`
+	UpdatedAt     time.Time     `json:"updated_at"`
+}
+
+// GetStudentRecapSummary returns a recap for EVERY class the student is enrolled in,
+// across ALL academic years. Grades are computed dynamically so they are always fresh.
+func (s *GradeService) GetStudentRecapSummary(ctx context.Context, studentID int) ([]StudentClassRecapItem, error) {
+	var enrollments []models.ClassEnrollment
+	if err := s.db.WithContext(ctx).
+		Where("user_id = ?", studentID).
+		Order("enrolled_at ASC").
+		Find(&enrollments).Error; err != nil {
+		return nil, err
+	}
+
+	results := make([]StudentClassRecapItem, 0, len(enrollments))
+	for _, en := range enrollments {
+		item := StudentClassRecapItem{
+			ClassID: en.ClassID,
+			Status:  "In Progress",
+		}
+
+		// Load class with academic year
+		var cls models.Class
+		if err := s.db.WithContext(ctx).Preload("AcademicYear").First(&cls, en.ClassID).Error; err == nil {
+			item.Class = &cls
+		}
+
+		// Compute dynamic grades via existing logic
+		detail, err := s.GetStudentDetailRecap(ctx, en.ClassID, studentID)
+		if err == nil {
+			item.AssignmentAvg = detail.AssignmentAvg
+			item.ExamScore = detail.ExamAvg
+			item.FinalScore = detail.FinalScore
+			item.Status = detail.Status
+			item.IsPublished = detail.IsPublished
+			item.Notes = detail.Notes
+		}
+
+		// Get saved recap ID & timestamp if exists
+		var savedRecap models.GradeRecap
+		if err := s.db.WithContext(ctx).Where("student_id = ? AND class_id = ?", studentID, en.ClassID).First(&savedRecap).Error; err == nil {
+			item.ID = savedRecap.ID
+			item.UpdatedAt = savedRecap.UpdatedAt
+		}
+
+		results = append(results, item)
+	}
+
+	return results, nil
 }

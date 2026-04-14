@@ -27,6 +27,7 @@ interface EnrolledClassInfo {
     class_id: number;
     class_name: string;
     academic_year: string;
+    is_active_year: boolean;
 }
 
 interface PendingTask {
@@ -36,6 +37,7 @@ interface PendingTask {
     class_name: string;
     due_date: string | null;
     is_submitted: boolean;
+    is_active_year: boolean;
 }
 
 interface StudentDashboard {
@@ -150,7 +152,8 @@ export default function MyClassPage() {
             setDashboardData(data);
             
             if (data.enrollments && data.enrollments.length > 0) {
-                setSelectedClassId(data.enrollments[0].class_id);
+                const active = data.enrollments.find(e => e.is_active_year);
+                setSelectedClassId(active?.class_id || data.enrollments[0].class_id);
             }
         } catch (error) {
             console.error("Failed to fetch dashboard", error);
@@ -222,7 +225,7 @@ export default function MyClassPage() {
         );
     }
 
-    const tasks = dashboardData.pending_tasks.filter(t => t.class_name === classDetail?.name);
+    const tasks = (dashboardData?.pending_tasks ?? []).filter(t => t.class_name === classDetail?.name && t.is_active_year);
     const filteredEnrollments = enrollments.filter(e => 
         e.user.name.toLowerCase().includes(siswaSearch.toLowerCase()) || 
         e.user.nis.includes(siswaSearch) ||

@@ -178,9 +178,10 @@ export function NotificationBell() {
                                             >
                                                 {n.title}
                                             </p>
-                                            <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                                                {n.message}
-                                            </p>
+                                            <div 
+                                                className="text-[11px] mt-0.5 leading-relaxed prose-sm max-w-none text-gray-500 line-clamp-2" 
+                                                dangerouslySetInnerHTML={{ __html: n.message }} 
+                                            />
                                             <p className="text-[10px] mt-1" style={{ color: "var(--text-muted)", opacity: 0.7 }}>
                                                 {timeAgo(n.created_at)}
                                             </p>
@@ -299,9 +300,10 @@ export default function NotificationsPage() {
                                                 </span>
                                             </div>
                                         </div>
-                                        <p className="text-sm mt-1 text-gray-500 leading-relaxed pr-8">
-                                            {n.message}
-                                        </p>
+                                        <div 
+                                            className="text-[13px] mt-1 text-gray-500 leading-relaxed pr-8 prose-sm max-w-none"
+                                            dangerouslySetInnerHTML={{ __html: n.message }}
+                                        />
                                     </div>
                                     {!n.is_read && (
                                         <div className="w-2.5 h-2.5 rounded-full bg-[#006D77] mt-2 shrink-0 shadow-[0_0_8px_rgba(0,109,119,0.5)] animate-pulse" />

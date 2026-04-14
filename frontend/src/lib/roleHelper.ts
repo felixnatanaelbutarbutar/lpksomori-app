@@ -29,7 +29,10 @@ export type Feature =
     | "my_class"
     | "student_assignments"
     | "materials"
-    | "student_recap";
+    | "student_recap"
+    | "certificates"
+    | "student_certificates"
+    | "student_profile";
 
 type PermissionMap = Record<Feature, boolean>;
 
@@ -54,6 +57,9 @@ const PERMISSIONS: Record<Role, PermissionMap> = {
         my_class: false,
         student_assignments: false,
         student_recap: false,
+        certificates: true,
+        student_certificates: false,
+        student_profile: false,
     },
     teacher: {
         dashboard: true,
@@ -75,6 +81,9 @@ const PERMISSIONS: Record<Role, PermissionMap> = {
         my_class: false,
         student_assignments: false,
         student_recap: false,
+        certificates: true,
+        student_certificates: false,
+        student_profile: false,
     },
     student: {
         dashboard: false,
@@ -96,6 +105,9 @@ const PERMISSIONS: Record<Role, PermissionMap> = {
         my_class: true,
         student_assignments: true, // student accesses assignments at /dashboard/students/assignments
         student_recap: true,
+        certificates: false,
+        student_certificates: true,
+        student_profile: true,
     },
 };
 
@@ -250,6 +262,27 @@ export const ALL_NAV_ITEMS: NavItem[] = [
         href: "/dashboard/settings",
         icon: "Settings",
         feature: "settings",
+    },
+    {
+        name: "Sertifikat",
+        nameJa: "修了証管理",
+        href: "/dashboard/certificates",
+        icon: "GraduationCap",
+        feature: "certificates",
+    },
+    {
+        name: "Sertifikat Saya",
+        nameJa: "修了証",
+        href: "/dashboard/students/certificates",
+        icon: "GraduationCap",
+        feature: "student_certificates",
+    },
+    {
+        name: "Profil Saya",
+        nameJa: "マイプロフィール",
+        href: "/dashboard/students/profile",
+        icon: "CircleUserRound",
+        feature: "student_profile",
     },
 ];
 

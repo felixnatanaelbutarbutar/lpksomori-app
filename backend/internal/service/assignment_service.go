@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"lpkmori-backend/internal/models"
+	"sort"
 	"time"
 
 	"gorm.io/gorm"
@@ -62,6 +63,7 @@ type EnrolledClassInfo struct {
 	ClassID        int    `json:"class_id"`
 	ClassName      string `json:"class_name"`
 	AcademicYear   string `json:"academic_year"`
+	IsActiveYear   bool   `json:"is_active_year"`
 }
 
 type PendingTask struct {
@@ -71,6 +73,7 @@ type PendingTask struct {
 	ClassName    string     `json:"class_name"`
 	DueDate      *time.Time `json:"due_date"`
 	IsSubmitted  bool       `json:"is_submitted"`
+	IsActiveYear bool       `json:"is_active_year"`
 }
 
 type assignmentService struct {
@@ -533,15 +536,25 @@ func (s *assignmentService) GetStudentDashboard(ctx context.Context, studentID i
 
 	var enrolledInfos []EnrolledClassInfo
 	for _, e := range enrollments {
-		cls := classMap[e.ClassID]
+		cls, ok := classMap[e.ClassID]
+		if !ok { continue }
 		enrolledInfos = append(enrolledInfos, EnrolledClassInfo{
 			ClassID:      e.ClassID,
 			ClassName:    cls.Name,
 			AcademicYear: cls.AcademicYear.YearRange,
+			IsActiveYear: cls.AcademicYear.IsActive,
 		})
 	}
 
-	// 4. Build pending tasks from assignments & exams
+	// 4. Sort enrollments: ACTIVE year first
+	sort.Slice(enrolledInfos, func(i, j int) bool {
+		if enrolledInfos[i].IsActiveYear && !enrolledInfos[j].IsActiveYear {
+			return true
+		}
+		return false
+	})
+
+	// 5. Build pending tasks from assignments & exams
 	var pendingTasks []PendingTask
 
 	for _, cls := range classes {
@@ -561,6 +574,7 @@ func (s *assignmentService) GetStudentDashboard(ctx context.Context, studentID i
 				ClassName:   cls.Name,
 				DueDate:     a.DueDate,
 				IsSubmitted: submitted,
+				IsActiveYear: cls.AcademicYear.IsActive,
 			})
 		}
 
@@ -579,6 +593,7 @@ func (s *assignmentService) GetStudentDashboard(ctx context.Context, studentID i
 				ClassName:   cls.Name,
 				DueDate:     ex.EndTime,
 				IsSubmitted: submitted,
+				IsActiveYear: cls.AcademicYear.IsActive,
 			})
 		}
 	}

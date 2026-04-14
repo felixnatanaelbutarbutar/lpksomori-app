@@ -257,6 +257,7 @@ type GradeRecap struct {
 	ExamScore       float64   `gorm:"default:0"                              json:"exam_score"`
 	FinalScore      float64   `gorm:"default:0"                              json:"final_score"`
 	Status          string    `gorm:"default:'In Progress'"                  json:"status"` // "Passed" | "Failed" | "In Progress"
+	IsPublished     bool      `gorm:"default:false"                          json:"is_published"`
 	Notes           string    `gorm:"type:text"                              json:"notes"`
 	TeacherID       int       `gorm:"not null"                               json:"teacher_id"`
 	UpdatedAt       time.Time `json:"updated_at"`
@@ -313,4 +314,20 @@ type BankQuestion struct {
 	Options      json.RawMessage `gorm:"type:jsonb"               json:"options"` // raw JSON
 	CreatedAt    time.Time       `                                json:"created_at"`
 	UpdatedAt    time.Time       `                                json:"updated_at"`
+}
+
+// ─── Certificate ──────────────────────────────────────────────────────────────
+// Auto-generated certificate for students who have Passed a class.
+// UUID is used for QR Code validation URL.
+type Certificate struct {
+	ID          int       `gorm:"primaryKey;autoIncrement"              json:"id"`
+	UUID        string    `gorm:"uniqueIndex;not null;type:varchar(36)" json:"uuid"`         // for QR validation
+	StudentID   int       `gorm:"not null;uniqueIndex:idx_cert_uniq"   json:"student_id"`
+	Student     User      `gorm:"foreignKey:StudentID"                  json:"student,omitempty"`
+	ClassID     int       `gorm:"not null;uniqueIndex:idx_cert_uniq"   json:"class_id"`
+	Class       Class     `gorm:"foreignKey:ClassID"                    json:"class,omitempty"`
+	FinalScore  float64   `gorm:"not null"                              json:"final_score"`
+	IssuedAt    time.Time `gorm:"autoCreateTime"                        json:"issued_at"`
+	IssuedBy    int       `gorm:"not null"                              json:"issued_by"` // teacher_id
+	Teacher     User      `gorm:"foreignKey:IssuedBy"                   json:"teacher,omitempty"`
 }

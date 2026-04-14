@@ -16,6 +16,12 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL
 
 interface ClassDist { name: string; count: number; }
 
+interface GradeHistory {
+    class_name: string;
+    final_score: number;
+    enrolled_at: string;
+}
+
 interface DashboardStats {
     active_students: number;
     total_classes: number;
@@ -59,6 +65,119 @@ function MiniBarChart({ data }: { data: ClassDist[] }) {
                     </span>
                 </div>
             ))}
+        </div>
+    );
+}
+
+// ─── Grade Progress Chart (Line Chart) ──────────────────────────────────────
+function GradeProgressChart({ data }: { data: GradeHistory[] }) {
+    const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+    if (!data || data.length < 2) {
+        return (
+            <div className="flex flex-col items-center justify-center h-48 opacity-40 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                <TrendingUp size={32} className="mb-2 text-gray-300" />
+                <p className="text-[10px] uppercase font-bold text-gray-400">
+                    {data.length === 1 ? "Butuh data dari minimal 2 kelas" : "Belum ada riwayat nilai akhir"}
+                </p>
+                <p className="text-[9px] text-gray-400 mt-1 px-4 text-center leading-relaxed">Grafik progress akan muncul setelah Anda memiliki minimal 2 nilai akhir dari kelas yang diikuti</p>
+            </div>
+        );
+    }
+
+    const width = 600;
+    const height = 200;
+    const padding = 35;
+    const maxScore = 100;
+    
+    // Calculate points
+    const points = data.map((d, i) => {
+        const x = padding + (i * (width - 2 * padding)) / (data.length - 1);
+        const y = height - padding - (d.final_score / maxScore) * (height - 2 * padding);
+        return { x, y, score: d.final_score, name: d.class_name };
+    });
+
+    const pathD = points.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(" ");
+    const areaD = `${pathD} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`;
+
+    return (
+        <div className="relative w-full group py-2">
+            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible">
+                <defs>
+                    <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#006D77" />
+                        <stop offset="100%" stopColor="#4ECDC4" />
+                    </linearGradient>
+                    <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#006D77" stopOpacity="0.15" />
+                        <stop offset="100%" stopColor="#006D77" stopOpacity="0" />
+                    </linearGradient>
+                </defs>
+                
+                {/* Y-Axis Grid */}
+                {[0, 25, 50, 75, 100].map(val => {
+                    const y = height - padding - (val / maxScore) * (height - 2 * padding);
+                    return (
+                        <g key={val}>
+                            <line x1={padding} y1={y} x2={width - padding} y2={y} stroke="#f1f5f9" strokeWidth="1" />
+                            <text x={padding - 8} y={y + 3} textAnchor="end" className="text-[9px] fill-gray-300 font-bold">{val}</text>
+                        </g>
+                    );
+                })}
+
+                {/* X-Axis Labels */}
+                {data.map((d, i) => {
+                    const x = padding + (i * (width - 2 * padding)) / (data.length - 1);
+                    return (
+                        <text key={i} x={x} y={height - 8} textAnchor="middle" className="text-[9px] font-bold fill-gray-400">
+                            {d.class_name.split(" ").slice(1).join(" ") || d.class_name.substring(0, 7)}
+                        </text>
+                    );
+                })}
+
+                {/* Line Area */}
+                <path d={areaD} fill="url(#areaGrad)" />
+                
+                {/* Path with stroke-dasharray animation logic could be here, but using simple CSS for now */}
+                <path d={pathD} fill="none" stroke="url(#lineGrad)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" 
+                    className="transition-all duration-1000" />
+
+                {/* Interaction Overlay (Vertical bars) */}
+                {points.map((p, i) => (
+                    <rect key={i} x={p.x - 20} y={0} width="40" height={height} fill="transparent" 
+                        onMouseEnter={() => setHoverIndex(i)} onMouseLeave={() => setHoverIndex(null)} className="cursor-pointer" />
+                ))}
+
+                {/* Vertical Guideline */}
+                {hoverIndex !== null && (
+                    <line x1={points[hoverIndex].x} y1={padding} x2={points[hoverIndex].x} y2={height - padding} 
+                        stroke="#006D7720" strokeWidth="1" strokeDasharray="4 2" />
+                )}
+
+                {/* Data Points */}
+                {points.map((p, i) => (
+                    <g key={i}>
+                        <circle cx={p.x} cy={p.y} r={hoverIndex === i ? 6 : 4.5} fill="white" stroke="#006D77" strokeWidth="2.5" 
+                            className="transition-all duration-300" />
+                    </g>
+                ))}
+            </svg>
+
+            {/* Nice interactive Tooltip */}
+            {hoverIndex !== null && (
+                <div className="absolute bg-white/95 backdrop-blur-md border border-gray-100 shadow-2xl rounded-2xl p-4 z-20 pointer-events-none transition-all duration-200 animate-in fade-in zoom-in-95"
+                    style={{ 
+                        left: `${(points[hoverIndex].x / width) * 100}%`, 
+                        top: `${(points[hoverIndex].y / height) * 100}%`,
+                        transform: "translate(-50%, -125%)" 
+                    }}>
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="w-2 h-2 rounded-full bg-[#006D77]" />
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">{data[hoverIndex].class_name}</p>
+                    </div>
+                    <p className="text-2xl font-black text-[#0D1B2A] leading-none mb-1">{data[hoverIndex].final_score}<span className="text-xs font-normal text-gray-400 ml-1">pts</span></p>
+                    <p className="text-[9px] text-[#006D77] font-bold">Enrolled: {new Date(data[hoverIndex].enrolled_at).toLocaleDateString("id-ID", { month: 'long', year: 'numeric' })}</p>
+                </div>
+            )}
         </div>
     );
 }
@@ -241,19 +360,29 @@ export default function DashboardPage() {
     const [now, setNow] = useState("");
     const [userName, setUserName] = useState("Pengguna");
     const [role, setRole] = useState<Role>("student");
+    const [gradeHistory, setGradeHistory] = useState<GradeHistory[]>([]);
 
     const [birthdays, setBirthdays] = useState<{ id: number; name: string; role: string }[]>([]);
 
     const fetchStats = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
         else setRefreshing(true);
+        
+        const token = localStorage.getItem("mori_token") || "";
+        const headers = { "Authorization": `Bearer ${token}` };
+
         try {
-            const res = await fetch(`${API_BASE}/stats`);
-            if (res.ok) {
-                const j = await res.json();
-                setStats(j);
-            }
-        } finally {
+            // Stats
+            fetch(`${API_BASE}/stats`).then(res => res.ok && res.json()).then(setStats);
+            
+            // Grade History
+            fetch(`${API_BASE}/users/me/grade-history`, { headers })
+                .then(res => res.ok && res.json())
+                .then(j => j && setGradeHistory(j.data || []));
+
+            // Birthdays
+            fetch(`${API_BASE}/users/birthdays-today`).then(res => res.ok && res.json()).then(d => d && setBirthdays(d.data || []));
+        } catch { } finally {
             setLoading(false);
             setRefreshing(false);
         }
@@ -268,16 +397,6 @@ export default function DashboardPage() {
             setRole(parseRole(localStorage.getItem("mori_role")));
         } catch { }
         fetchStats();
-
-        // Fetch birthdays
-        fetch(`${API_BASE}/users/birthdays-today`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.data) {
-                    setBirthdays(data.data);
-                }
-            })
-            .catch(() => {});
     }, [fetchStats]);
 
     const statCards = [
@@ -410,23 +529,39 @@ export default function DashboardPage() {
             {/* ── Charts + Quick Actions Row ── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                 {/* Distribusi Siswa per Kelas */}
-                <div className="lg:col-span-2 rounded-2xl p-5"
+                <div className="rounded-2xl p-5"
                     style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)" }}>
                     <div className="flex items-center justify-between mb-5">
                         <div>
                             <h3 className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
-                                <BarChart2 size={16} className="inline mr-2 text-[#006D77]" />Distribusi Siswa per Kelas
+                                <BarChart2 size={16} className="inline mr-2 text-[#006D77]" />Distribusi Siswa
                             </h3>
-                            <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Jumlah siswa enrolled per kelas aktif</p>
+                            <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>Siswa per kelas aktif</p>
                         </div>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#006D77]/10 text-[#006D77] font-bold">
-                            T.A. {stats?.active_year || "—"}
-                        </span>
                     </div>
                     {loading ? (
                         <div className="h-32 bg-gray-50 rounded-xl animate-pulse" />
                     ) : (
                         <MiniBarChart data={stats?.class_distribution ?? []} />
+                    )}
+                </div>
+
+                {/* Grafik Perkembangan Nilai Siswa (Line Chart) */}
+                <div className="rounded-2xl p-5"
+                    style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)" }}>
+                    <div className="flex items-center justify-between mb-5">
+                        <div>
+                            <h3 className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
+                                <TrendingUp size={16} className="inline mr-2 text-[#006D77]" />Progress Belajar
+                            </h3>
+                            <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>Riwayat nilai akhir tiap kelas</p>
+                        </div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-bold uppercase tracking-wider">Line Chart</span>
+                    </div>
+                    {loading ? (
+                        <div className="h-32 bg-gray-50 rounded-xl animate-pulse" />
+                    ) : (
+                        <GradeProgressChart data={gradeHistory} />
                     )}
                 </div>
 

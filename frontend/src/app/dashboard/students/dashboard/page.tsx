@@ -12,9 +12,11 @@ import {
     FileText,
     Layers,
     PartyPopper,
-    CalendarDays
+    CalendarDays,
+    TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
+import { StudentProgressChart } from "../../../../components/StudentProgressChart";
 
 const API = "http://localhost:8080/api/v1";
 
@@ -22,6 +24,7 @@ interface EnrolledClassInfo {
     class_id: number;
     class_name: string;
     academic_year: string;
+    is_active_year: boolean;
     course_count: number;
 }
 
@@ -33,6 +36,7 @@ interface PendingTask {
     class_name: string;
     due_date: string | null;
     is_submitted: boolean;
+    is_active_year: boolean;
 }
 
 interface StudentDashboard {
@@ -72,6 +76,7 @@ export default function StudentDashboardPage() {
     const [data, setData] = useState<StudentDashboard | null>(null);
     const [loading, setLoading] = useState(true);
     const [userName, setUserName] = useState("");
+    const [userId, setUserId] = useState<number | null>(null);
     const [filter, setFilter] = useState<"all" | "pending" | "submitted">("all");
     const [now, setNow] = useState("");
     const [birthdays, setBirthdays] = useState<{ id: number; name: string; role: string }[]>([]);
@@ -108,8 +113,13 @@ export default function StudentDashboardPage() {
         const d = new Date();
         setNow(d.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }));
         try {
-            const u = JSON.parse(localStorage.getItem("mori_user") ?? "{}");
+            const userStr = localStorage.getItem("mori_user");
+            const u = JSON.parse(userStr ?? "{}");
             setUserName(u.name || u.email || "Siswa");
+            
+            // For the chart, we need the numeric ID
+            const storedId = u.id || u.ID;
+            if (storedId) setUserId(storedId);
         } catch { }
     }, [fetchDashboard]);
 
@@ -122,7 +132,9 @@ export default function StudentDashboardPage() {
         return "Selamat malam";
     })();
 
-    const pendingTasks = data?.pending_tasks ?? [];
+    const activeEnrollments = (data?.enrollments ?? []).filter(e => e.is_active_year);
+    const pendingTasks = (data?.pending_tasks ?? []).filter(t => t.is_active_year);
+    
     const filtered = pendingTasks.filter((t) => {
         if (filter === "pending") return !t.is_submitted;
         if (filter === "submitted") return t.is_submitted;
@@ -153,7 +165,7 @@ export default function StudentDashboardPage() {
                             {firstName} <span className="animate-bounce inline-block">👋</span>
                         </h1>
                         <p className="text-white/90 text-sm" style={{ color: "rgba(255,255,255,0.9)" }}>
-                            Kamu terdaftar di <span className="font-bold underline decoration-[#006D77]">{data?.enrollments?.length ?? 0} kelas</span> dengan <span className="font-bold underline decoration-rose-500">{pendingCount} tugas</span> tertunda.
+                            Kamu terdaftar di <span className="font-bold underline decoration-[#006D77]">{activeEnrollments.length} kelas aktif</span> dengan <span className="font-bold underline decoration-rose-500">{pendingCount} tugas</span> tertunda.
                         </p>
                     </div>
                     <div className="flex items-center gap-2 bg-white/20 backdrop-blur-md px-4 py-2 rounded-full text-xs font-medium border border-white/10 shrink-0">
@@ -191,8 +203,8 @@ export default function StudentDashboardPage() {
             <div className="grid grid-cols-3 gap-4">
                 {[
                     {
-                        label: "Kelas Diikuti",
-                        value: data?.enrollments?.length ?? 0,
+                        label: "Kelas Aktif",
+                        value: activeEnrollments.length,
                         icon: <Layers size={20} className="text-[#006D77]" />,
                         bg: "bg-[#006D77]/10",
                     },
@@ -224,6 +236,23 @@ export default function StudentDashboardPage() {
                 ))}
             </div>
 
+            {/* ── Progress Chart ── */}
+            {userId && (
+                <div 
+                    className="p-6 rounded-[32px] bg-white border border-gray-100 shadow-sm"
+                >
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 className="text-lg font-serif font-black text-[#0D1B2A] flex items-center gap-2">
+                                <TrendingUp size={20} className="text-[#006D77]" /> Progress Belajar
+                            </h2>
+                            <p className="text-xs text-gray-400">Riwayat nilai akhir dari setiap kelas yang pernah diikuti.</p>
+                        </div>
+                    </div>
+                    <StudentProgressChart studentId={userId} />
+                </div>
+            )}
+
             {/* ── Enrolled Classes ── */}
             <div>
                 <div className="flex items-center justify-between mb-4">
@@ -236,16 +265,16 @@ export default function StudentDashboardPage() {
                     </Link>
                 </div>
 
-                {(!data?.enrollments || data.enrollments.length === 0) ? (
+                {(activeEnrollments.length === 0) ? (
                     <div className="bg-amber-50 border border-amber-100 rounded-2xl px-5 py-6 flex items-center gap-3">
                         <AlertCircle size={18} className="text-amber-500 shrink-0" />
                         <p className="text-sm text-amber-700">
-                            Kamu belum didaftarkan ke kelas manapun. Hubungi admin untuk pendaftaran.
+                            Kamu belum didaftarkan ke kelas manapun di tahun ajaran aktif ini. Hubungi admin untuk pendaftaran.
                         </p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {data.enrollments.map((cls, i) => (
+                        {activeEnrollments.map((cls, i) => (
                             <div
                                 key={cls.class_id}
                                 className="rounded-2xl overflow-hidden shadow-sm border border-gray-100 bg-white hover:shadow-md transition-shadow"

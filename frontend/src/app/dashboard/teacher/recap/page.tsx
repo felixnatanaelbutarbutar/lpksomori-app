@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
     ChevronLeft, GraduationCap, CheckCircle2, XCircle,
-    AlertCircle, Save, Search, BarChart3, TrendingUp, Download, BookOpen
+    AlertCircle, Save, Search, BarChart3, TrendingUp, Download, BookOpen, Award
 } from "lucide-react";
 import Swal from "sweetalert2";
 
@@ -19,6 +19,7 @@ interface StudentRecap {
     exam_avg: number;
     final_score: number;
     status: string;
+    is_published: boolean;
     notes: string;
 }
 
@@ -116,15 +117,52 @@ export default function TeacherRecapPage() {
 
     useEffect(() => { if (selectedClassId) fetchRecap(selectedClassId); }, [selectedClassId, fetchRecap]);
 
-    const handleUpdateRecap = async (studentId: number, status: string, notes: string, finalScore: number) => {
+    const handleUpdateRecap = async (studentId: number, status: string, notes: string, finalScore: number, isPublished: boolean) => {
         setSavingId(studentId);
         try {
             await fetch(`${API}/classes/${selectedClassId}/recap/${studentId}`, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ status, notes, final_score: finalScore })
+                body: JSON.stringify({ status, notes, final_score: finalScore, is_published: isPublished })
             });
-            setRecapData(prev => prev.map(r => r.student_id === studentId ? { ...r, status, notes, final_score: finalScore } : r));
+            setRecapData(prev => prev.map(r => r.student_id === studentId ? { ...r, status, notes, final_score: finalScore, is_published: isPublished } : r));
+
+            // Auto-generate certificate when student Passed and is published
+            if (status === "Passed" && isPublished) {
+                await fetch(`${API}/certificates/generate`, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        class_id: selectedClassId,
+                        student_id: studentId,
+                        final_score: finalScore
+                    })
+                });
+                Swal.fire({
+                    title: "🎓 Sertifikat Digenerate!",
+                    html: `Rekap nilai berhasil <strong>terbit</strong> dan sertifikat otomatis dibuat.`,
+                    icon: "success",
+                    confirmButtonColor: "#006D77",
+                    timer: 3000,
+                    timerProgressBar: true,
+                });
+            } else if (isPublished) {
+                Swal.fire({
+                    title: "🚀 Nilai Diterbitkan",
+                    text: "Siswa sekarang dapat melihat rekap nilai mereka.",
+                    icon: "info",
+                    confirmButtonColor: "#006D77",
+                    timer: 2000
+                });
+            } else {
+                 Swal.fire({
+                    title: "💾 Draft Disimpan",
+                    text: "Nilai disimpan sebagai draft (belum terlihat oleh siswa).",
+                    icon: "success",
+                    confirmButtonColor: "#6B7280",
+                    timer: 1500
+                });
+            }
         } finally { setSavingId(null); }
     };
 
@@ -437,19 +475,59 @@ export default function TeacherRecapPage() {
                                         </td>
                                         {/* Catatan */}
                                         <td className="px-4 py-4 border-r border-gray-100">
-                                            <input type="text" placeholder="Berikan masukan..."
-                                                value={r.notes}
-                                                onChange={e => setRecapData(prev => prev.map(x => x.student_id === r.student_id ? { ...x, notes: e.target.value } : x))}
-                                                className="w-full bg-gray-50 border-0 focus:bg-white focus:ring-1 focus:ring-gray-200 px-3 py-1.5 rounded-lg text-xs outline-none" />
+                                            <div className="flex flex-col gap-2">
+                                                <input type="text" placeholder="Berikan masukan..."
+                                                    value={r.notes}
+                                                    onChange={e => setRecapData(prev => prev.map(x => x.student_id === r.student_id ? { ...x, notes: e.target.value } : x))}
+                                                    className="w-full bg-gray-50 border-0 focus:bg-white focus:ring-1 focus:ring-gray-200 px-3 py-1.5 rounded-lg text-xs outline-none" />
+                                                
+                                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                                    <input type="checkbox" checked={r.is_published}
+                                                        onChange={e => setRecapData(prev => prev.map(x => x.student_id === r.student_id ? { ...x, is_published: e.target.checked } : x))}
+                                                        className="w-3.5 h-3.5 rounded accent-[#006D77]" />
+                                                    <span className={`text-[10px] font-bold ${r.is_published ? "text-[#006D77]" : "text-gray-400"}`}>
+                                                        {r.is_published ? "Terbit (Mahasiswa Bisa Lihat)" : "Draft (Sembunyi)"}
+                                                    </span>
+                                                </label>
+                                            </div>
                                         </td>
                                         {/* Aksi */}
                                         <td className="px-4 py-4 text-right">
-                                            <button onClick={() => handleUpdateRecap(r.student_id, r.status, r.notes, r.final_score)}
-                                                disabled={savingId === r.student_id}
-                                                className="inline-flex items-center gap-2 px-4 py-2 bg-[#006D77] text-white rounded-xl text-xs font-bold shadow hover:scale-105 active:scale-95 transition-all disabled:opacity-50">
-                                                {savingId === r.student_id ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Save size={14} />}
-                                                Simpan
-                                            </button>
+                                            <div className="flex flex-col items-end gap-2">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {r.status === "Passed" && (
+                                                        <button
+                                                            onClick={async () => {
+                                                                const res = await fetch(`${API}/certificates/generate`, {
+                                                                    method: "POST",
+                                                                    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                                                                    body: JSON.stringify({ class_id: selectedClassId, student_id: r.student_id, final_score: r.final_score })
+                                                                });
+                                                                const data = await res.json();
+                                                                if (data.data?.uuid) {
+                                                                    window.open(`${API}/certificates/download/${data.data.uuid}`, "_blank");
+                                                                }
+                                                            }}
+                                                            title="Download Sertifikat"
+                                                            className="inline-flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                                                        >
+                                                            <Award size={13} />
+                                                            Sertifikat
+                                                        </button>
+                                                    )}
+                                                    <button onClick={() => handleUpdateRecap(r.student_id, r.status, r.notes, r.final_score, r.is_published)}
+                                                        disabled={savingId === r.student_id}
+                                                        className={`inline-flex items-center gap-2 px-4 py-2 text-white rounded-xl text-xs font-bold shadow hover:scale-105 active:scale-95 transition-all disabled:opacity-50 ${r.is_published ? "bg-[#006D77]" : "bg-gray-500"}`}>
+                                                        {savingId === r.student_id ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : r.is_published ? <CheckCircle2 size={14} /> : <Save size={14} />}
+                                                        {r.is_published ? "Terbitkan" : "Simpan Draft"}
+                                                    </button>
+                                                </div>
+                                                {r.is_published && (
+                                                    <span className="text-[9px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1">
+                                                        <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" /> TERBIT
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

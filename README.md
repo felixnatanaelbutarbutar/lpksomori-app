@@ -455,6 +455,10 @@ Edit `docker-compose.yml`, ubah port di bagian `ports:`:
 ports:
   - "3001:3000"   # Frontend di port 3001
   - "8081:8080"   # Backend di port 8081
+  
+  
+  
+  AI may make mistakes. Double-check all generated code.
 ```
 
 ### Login gagal setelah reset database

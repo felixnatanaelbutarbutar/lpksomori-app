@@ -172,10 +172,22 @@ func (s *academicYearService) DeleteAcademicYear(ctx context.Context, id int) er
 // ListClasses returns classes for a given academic year (or active year if 0).
 func (s *academicYearService) ListClasses(ctx context.Context, academicYearID int) ([]models.Class, error) {
 	var classes []models.Class
-	query := s.db.WithContext(ctx).Preload("AcademicYear").Preload("Teacher").Order("bab_start ASC")
-	if academicYearID > 0 {
-		query = query.Where("academic_year_id = ?", academicYearID)
+	
+	if academicYearID <= 0 {
+		activeYear, err := s.GetActiveYear(ctx)
+		if err != nil {
+			// If no active year, return empty list
+			return []models.Class{}, nil
+		}
+		academicYearID = activeYear.ID
 	}
+
+	query := s.db.WithContext(ctx).
+		Preload("AcademicYear").
+		Preload("Teacher").
+		Where("academic_year_id = ?", academicYearID).
+		Order("bab_start ASC")
+
 	if err := query.Find(&classes).Error; err != nil {
 		return nil, err
 	}

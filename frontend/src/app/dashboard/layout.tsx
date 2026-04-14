@@ -25,6 +25,7 @@ import {
     Menu,
     Camera,
     X,
+    CircleUserRound,
 } from "lucide-react";
 
 import {
@@ -42,7 +43,7 @@ import { NotificationBell } from "./notifications/page";
 const ICON_MAP: Record<string, React.ElementType> = {
     LayoutDashboard, Users, CalendarDays, BookOpen, GraduationCap,
     FileText, Database, BookMarked, BarChart2, PieChart,
-    Settings, Bell, ClipboardList, Megaphone,
+    Settings, Bell, ClipboardList, Megaphone, CircleUserRound,
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

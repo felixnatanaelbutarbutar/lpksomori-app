@@ -59,6 +59,7 @@ func main() {
 		&models.LearningMaterial{},
 		&models.QuestionBank{},
 		&models.BankQuestion{},
+		&models.Certificate{},
 	)
 
 	// Seed default users and settings on start
@@ -71,6 +72,7 @@ func main() {
 	userSvc := service.NewUserService(db)
 	assignSvc := service.NewAssignmentService(db)
 	gradeSvc := service.NewGradeService(db)
+	certSvc := service.NewCertificateService(db, getEnv("BASE_URL", "http://localhost:8080"))
 
 	router := gin.Default()
 
@@ -442,9 +444,10 @@ func main() {
 					teacherID, _ := c.Get(middleware.CtxUserID)
 
 					type RecapInput struct {
-						Status     string  `json:"status"`
-						Notes      string  `json:"notes"`
-						FinalScore float64 `json:"final_score"`
+						Status      string  `json:"status"`
+						Notes       string  `json:"notes"`
+						FinalScore  float64 `json:"final_score"`
+						IsPublished bool    `json:"is_published"`
 					}
 					var input RecapInput
 					if err := c.ShouldBindJSON(&input); err != nil {
@@ -452,7 +455,7 @@ func main() {
 						return
 					}
 
-					recap, err := gradeSvc.SaveRecap(c.Request.Context(), classID, studentID, input.Status, input.Notes, input.FinalScore, teacherID.(int))
+					recap, err := gradeSvc.SaveRecap(c.Request.Context(), classID, studentID, input.Status, input.Notes, input.FinalScore, input.IsPublished, teacherID.(int))
 					if err != nil {
 						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 						return
@@ -533,6 +536,144 @@ func main() {
 				c.JSON(http.StatusOK, gin.H{"message": "Siswa berhasil dikeluarkan dari kelas"})
 			})
 		}
+
+		// ─── Certificates ──────────────────────────────────────────────────────────
+		certs := api.Group("/certificates")
+		{
+			// POST /api/v1/certificates/generate — teacher generates cert for a passed student
+			// Body: { class_id, student_id, final_score }
+			certs.POST("/generate",
+				middleware.Auth(authSvc), middleware.RequireRole("teacher", "admin"),
+				func(c *gin.Context) {
+					type GenInput struct {
+						ClassID    int     `json:"class_id" binding:"required"`
+						StudentID  int     `json:"student_id" binding:"required"`
+						FinalScore float64 `json:"final_score"`
+					}
+					var inp GenInput
+					if err := c.ShouldBindJSON(&inp); err != nil {
+						c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+						return
+					}
+					teacherID, _ := c.Get(middleware.CtxUserID)
+					cert, err := certSvc.GetOrCreate(c.Request.Context(), inp.ClassID, inp.StudentID, teacherID.(int), inp.FinalScore)
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, gin.H{"message": "Sertifikat berhasil dibuat", "data": cert})
+				},
+			)
+
+			// GET /api/v1/certificates/my — student gets own certs
+			certs.GET("/my",
+				middleware.Auth(authSvc),
+				func(c *gin.Context) {
+					uid, _ := c.Get(middleware.CtxUserID)
+					list, err := certSvc.ListByStudent(c.Request.Context(), uid.(int))
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, gin.H{"data": list})
+				},
+			)
+
+			// GET /api/v1/certificates — admin lists all certs
+			certs.GET("",
+				middleware.Auth(authSvc), middleware.RequireRole("admin", "teacher"),
+				func(c *gin.Context) {
+					list, err := certSvc.ListAll(c.Request.Context())
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, gin.H{"data": list})
+				},
+			)
+
+			// GET /api/v1/certificates/verify/:uuid — PUBLIC validation
+			certs.GET("/verify/:uuid", func(c *gin.Context) {
+				uuid := c.Param("uuid")
+				cert, err := certSvc.GetByUUID(c.Request.Context(), uuid)
+				if err != nil {
+					c.JSON(http.StatusNotFound, gin.H{"valid": false, "error": "Sertifikat tidak ditemukan"})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{
+					"valid":        true,
+					"student_name": cert.Student.Name,
+					"class_name":   cert.Class.Name,
+					"final_score":  cert.FinalScore,
+					"issued_at":    cert.IssuedAt,
+					"teacher_name": cert.Teacher.Name,
+				})
+			})
+
+			// GET /api/v1/certificates/download/:uuid — download PDF
+			certs.GET("/download/:uuid", func(c *gin.Context) {
+				uuid := c.Param("uuid")
+				cert, err := certSvc.GetByUUID(c.Request.Context(), uuid)
+				if err != nil {
+					c.JSON(http.StatusNotFound, gin.H{"error": "Sertifikat tidak ditemukan"})
+					return
+				}
+				pdfBytes, err := certSvc.GeneratePDF(cert)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal generate PDF: " + err.Error()})
+					return
+				}
+				filename := fmt.Sprintf("Sertifikat_%s.pdf", cert.Student.Name)
+				c.Header("Content-Disposition", "attachment; filename=\""+filename+"\"")
+				c.Header("Content-Type", "application/pdf")
+				c.Data(http.StatusOK, "application/pdf", pdfBytes)
+			})
+
+			// GET /api/v1/certificates/preview/:uuid — preview PDF inline
+			certs.GET("/preview/:uuid", func(c *gin.Context) {
+				uuid := c.Param("uuid")
+				cert, err := certSvc.GetByUUID(c.Request.Context(), uuid)
+				if err != nil {
+					c.JSON(http.StatusNotFound, gin.H{"error": "Sertifikat tidak ditemukan"})
+					return
+				}
+				pdfBytes, err := certSvc.GeneratePDF(cert)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Gagal generate PDF: " + err.Error()})
+					return
+				}
+				c.Header("Content-Disposition", "inline")
+				c.Header("Content-Type", "application/pdf")
+				c.Data(http.StatusOK, "application/pdf", pdfBytes)
+			})
+		}
+
+		// ─── Student Learning Progress ───────────────────────────────────────────
+		api.GET("/users/me/grade-history", middleware.Auth(authSvc), func(c *gin.Context) {
+			userID, _ := c.Get(middleware.CtxUserID)
+
+			type HistoryItem struct {
+				ClassName  string    `json:"class_name"`
+				FinalScore float64   `json:"final_score"`
+				EnrolledAt time.Time `json:"enrolled_at"`
+			}
+			var history []HistoryItem
+
+			err := db.Table("grade_recaps").
+				Select("classes.name as class_name, grade_recaps.final_score, class_enrollments.enrolled_at").
+				Joins("JOIN classes ON classes.id = grade_recaps.class_id").
+				Joins("JOIN class_enrollments ON class_enrollments.class_id = grade_recaps.class_id AND class_enrollments.user_id = grade_recaps.student_id").
+				Where("grade_recaps.student_id = ? AND grade_recaps.is_published = ?", userID, true).
+				Order("class_enrollments.enrolled_at ASC").
+				Scan(&history).Error
+
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{"data": history})
+		})
 
 		// Authentication Endpoints
 		auth := api.Group("/auth")
@@ -759,6 +900,89 @@ func main() {
 				}
 				c.JSON(http.StatusOK, gin.H{"message": "Password berhasil diperbarui"})
 			})
+
+			// GET /api/v1/users/:id/progress — student progress chart data (all roles)
+			users.GET("/:id/progress",
+				middleware.Auth(authSvc),
+				func(c *gin.Context) {
+					var studentID int
+					if _, err := fmt.Sscan(c.Param("id"), &studentID); err != nil {
+						c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+						return
+					}
+
+					// Get enrollments ordered by enrolled_at ASC (earliest first)
+					type ProgressPoint struct {
+						ClassID      int       `json:"class_id"`
+						ClassName    string    `json:"class_name"`
+						AcademicYear string    `json:"academic_year"`
+						EnrolledAt   time.Time `json:"enrolled_at"`
+						FinalScore   *float64  `json:"final_score"`
+						Status       string    `json:"status"`
+					}
+
+					var enrollments []models.ClassEnrollment
+					db.WithContext(c.Request.Context()).
+						Where("user_id = ?", studentID).
+						Preload("User").
+						Order("enrolled_at ASC").
+						Find(&enrollments)
+
+					var classIDs []int
+					for _, e := range enrollments {
+						classIDs = append(classIDs, e.ClassID)
+					}
+
+					classMap := make(map[int]models.Class)
+					if len(classIDs) > 0 {
+						var classes []models.Class
+						db.WithContext(c.Request.Context()).
+							Where("id IN ?", classIDs).
+							Preload("AcademicYear").
+							Find(&classes)
+						for _, cls := range classes {
+							classMap[cls.ID] = cls
+						}
+					}
+
+					recapMap := make(map[int]models.GradeRecap)
+					var recaps []models.GradeRecap
+					if len(classIDs) > 0 {
+						db.WithContext(c.Request.Context()).
+							Where("student_id = ? AND class_id IN ?", studentID, classIDs).
+							Find(&recaps)
+						for _, r := range recaps {
+							recapMap[r.ClassID] = r
+						}
+					}
+
+					var points []ProgressPoint
+					for _, e := range enrollments {
+						cls := classMap[e.ClassID]
+						recap, hasRecap := recapMap[e.ClassID]
+
+						p := ProgressPoint{
+							ClassID:      e.ClassID,
+							ClassName:    cls.Name,
+							AcademicYear: cls.AcademicYear.YearRange,
+							EnrolledAt:   e.EnrolledAt,
+							Status:       "In Progress",
+						}
+						if hasRecap {
+							score := recap.FinalScore
+							p.FinalScore = &score
+							p.Status = recap.Status
+						}
+						points = append(points, p)
+					}
+
+					if points == nil {
+						points = []ProgressPoint{}
+					}
+
+					c.JSON(http.StatusOK, gin.H{"data": points})
+				},
+			)
 		}
 
 		// Serve uploaded files statically
@@ -1206,17 +1430,32 @@ func main() {
 		})
 
 		// ─── Student Own Grade Recap ──────────────────────────────────────────────
-		// GET /api/v1/student/grade-recap — returns all grade_recaps for the authenticated student
+		// GET /api/v1/student/grade-recap — returns dynamically computed recap for ALL enrolled classes
 		api.GET("/student/grade-recap", middleware.Auth(authSvc), middleware.RequireRole("student"), func(c *gin.Context) {
 			studentID, _ := c.Get(middleware.CtxUserID)
-			var recaps []models.GradeRecap
-			db.WithContext(c.Request.Context()).
-				Preload("Class").
-				Preload("Class.AcademicYear").
-				Where("student_id = ?", studentID.(int)).
-				Order("updated_at DESC").
-				Find(&recaps)
+			recaps, err := gradeSvc.GetStudentRecapSummary(c.Request.Context(), studentID.(int))
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
 			c.JSON(http.StatusOK, gin.H{"data": recaps})
+		})
+
+		// GET /api/v1/student/grade-recap/:class_id — returns detailed recap including assignments and exams
+		api.GET("/student/grade-recap/:class_id", middleware.Auth(authSvc), middleware.RequireRole("student"), func(c *gin.Context) {
+			studentID, _ := c.Get(middleware.CtxUserID)
+			var classID int
+			if _, err := fmt.Sscan(c.Param("class_id"), &classID); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid class ID"})
+				return
+			}
+			
+			detail, err := gradeSvc.GetStudentDetailRecap(c.Request.Context(), classID, studentID.(int))
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"data": detail})
 		})
 
 
@@ -1706,10 +1945,10 @@ func seedUsers(db *gorm.DB) {
 func seedSettings(db *gorm.DB) {
 	defaults := map[string]string{
 		"lpk_name":                   "LPK SO Mori Centre",
-		"lpk_motto":                  "Membentuk Tenaga Kerja Kompeten dan Berkarakter",
-		"lpk_address":                "Jl. Sejahtera No. 123, Indonesia",
-		"lpk_phone":                  "0812-3456-7890",
-		"min_pass_score":             "70",
+		"lpk_motto":                  "Meningkatkan Kualitas Sumber Daya Manusia Muda Indonesia Melalui Program Pemagangan Dan Program SSW ( Specified Skilled Worker).",
+		"lpk_address":                "JALAN BALIGE-SILANGIT, Desa/Kelurahan Parik Sabungan, Kec. Siborong-Borong, Kab. Tapanuli Utara, Provinsi Sumatera Utara, Kode Pos: 22474",
+		"lpk_phone":                  "+62 821 6453 8492",
+		"min_pass_score":             "80",
 		"exam_max_attempt_default":   "1",
 		"allow_student_register":     "true",
 		"maintenance_mode":           "false",

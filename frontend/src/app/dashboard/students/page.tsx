@@ -12,7 +12,9 @@ import {
     BookOpen,
     CircleUserRound,
     Check,
+    BarChart2,
 } from "lucide-react";
+import { StudentProgressChart } from "../../../components/StudentProgressChart";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL
     ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1`
@@ -122,6 +124,7 @@ export default function UsersPage() {
     const [editForm, setEditForm] = useState({ name: "", nis: "", active: true });
 
     const [deleteId, setDeleteId] = useState<number | null>(null);
+    const [progressUser, setProgressUser] = useState<User | null>(null);
 
     const fetchUsers = useCallback(async () => {
         setLoading(true);
@@ -391,6 +394,18 @@ export default function UsersPage() {
                                         </td>
                                         <td className="px-5 py-3.5">
                                             <div className="flex items-center gap-1">
+                                                {u.role === "student" && (
+                                                    <button
+                                                        onClick={() => setProgressUser(u)}
+                                                        className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                                                        style={{ color: "var(--text-muted)" }}
+                                                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#EEF6FF"; (e.currentTarget as HTMLElement).style.color = "#5C5EA6"; }}
+                                                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--text-muted)"; }}
+                                                        title="Lihat Progres Nilai"
+                                                    >
+                                                        <BarChart2 size={13} />
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={() => openEdit(u)}
                                                     className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
@@ -642,6 +657,48 @@ export default function UsersPage() {
                         </button>
                     </div>
                 </Modal>
+            )}
+
+            {/* ── Progress Chart Modal ── */}
+            {progressUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-fade-in">
+                    <div
+                        className="w-full max-w-lg rounded-2xl overflow-hidden"
+                        style={{
+                            background: "var(--bg-surface)",
+                            border: "1px solid var(--border)",
+                            boxShadow: "var(--shadow-lg)",
+                            maxHeight: "85vh",
+                            overflowY: "auto",
+                        }}
+                    >
+                        <div
+                            className="flex items-center justify-between px-6 py-4 sticky top-0 z-10"
+                            style={{ background: "var(--bg-surface)", borderBottom: "1px solid var(--border-subtle)" }}
+                        >
+                            <div>
+                                <h3 className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>
+                                    Progres Nilai — {progressUser.name || progressUser.email}
+                                </h3>
+                                <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+                                    Nilai akhir tiap kelas, diurutkan tanggal masuk
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setProgressUser(null)}
+                                className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                                style={{ color: "var(--text-muted)" }}
+                                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--bg-subtle)"; }}
+                                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <StudentProgressChart studentId={progressUser.id} />
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
